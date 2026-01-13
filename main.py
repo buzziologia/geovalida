@@ -28,27 +28,52 @@ class GeoValidaManager:
         self.analyzer = ODAnalyzer()
         self.map_generator = UTPMapGenerator(self.graph)
         self.consolidator = UTPConsolidator(self.graph, self.validator)
+    
+    @property
+    def gdf(self):
+        """Propriedade para acessar o GeoDataFrame do map_generator."""
+        return self.map_generator.gdf_complete if self.map_generator else None
 
     def step_0_initialize_data(self):
         """Carrega as bases de dados e sincroniza o Grafo."""
         self.logger.info("Etapa 0: Carregando Bases de Dados...")
         try:
-            # Leitura robusta (Lida com acentuação e erros de aspas)
-            read_params = {'sep': ',', 'encoding': 'latin1', 'on_bad_lines': 'skip'}
+            self.logger.info(f"Carregando UTP base de {FILES['utp_base']}...")
+            if str(FILES['utp_base']).endswith('.xlsx'):
+                df_utp = pd.read_excel(FILES['utp_base'], dtype=str)
+            else:
+                df_utp = pd.read_csv(FILES['utp_base'], sep=',', encoding='latin1', on_bad_lines='skip', engine='python', dtype=str)
+            self.logger.info(f"  ✓ UTP: {len(df_utp)} linhas carregadas")
             
-            df_utp = pd.read_csv(FILES['utp_base'], **read_params)
-            df_regic = pd.read_csv(FILES['sede_regic'], **read_params)
+            self.logger.info(f"Carregando SEDE+REGIC de {FILES['sede_regic']}...")
+            if str(FILES['sede_regic']).endswith('.xlsx'):
+                df_regic = pd.read_excel(FILES['sede_regic'], dtype=str)
+            else:
+                df_regic = pd.read_csv(FILES['sede_regic'], sep=',', encoding='latin1', on_bad_lines='skip', engine='python', dtype=str)
+            self.logger.info(f"  ✓ REGIC: {len(df_regic)} linhas carregadas")
             
-            # Popula o Grafo (Com proteção contra o erro 'true' da linha 4833)
+            # Popula o Grafo
             self.graph.load_from_dataframe(df_utp, df_regic)
             
             # Inicializa o GDF de municípios para o Mapa
+            self.logger.info(f"Carregando shapefiles...")
             self.map_generator.load_shapefiles()
+            self.logger.info(f"  ✓ Shapefiles carregados")
             
             self.logger.info(f"Dados carregados. Grafo: {len(self.graph.hierarchy.nodes)} nós.")
             return True
+        except FileNotFoundError as e:
+            self.logger.error(f"Arquivo não encontrado: {e}")
+            self.logger.error(f"Verifique se os arquivos estão em data/01_raw/")
+            return False
+        except pd.errors.ParserError as e:
+            self.logger.error(f"Erro ao fazer parsing do arquivo: {e}")
+            self.logger.error(f"Verifique se o arquivo não está corrompido")
+            return False
         except Exception as e:
-            self.logger.error(f"Erro na Inicialização: {e}")
+            self.logger.error(f"Erro na Inicialização: {type(e).__name__}: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             return False
 
     def step_1_generate_initial_map(self):

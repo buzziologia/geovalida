@@ -7,7 +7,7 @@ import geopandas as gpd
 import shapely.geometry as sgeom
 import shapely.ops as ops
 
-from .graph import TerritorialHierarchyGraph
+from .graph import TerritorialGraph
 
 
 class TerritorialValidator:
@@ -28,7 +28,7 @@ class TerritorialValidator:
         '6': 99  # Padrão caso não encontrado
     }
 
-    def __init__(self, graph: TerritorialHierarchyGraph):
+    def __init__(self, graph: TerritorialGraph):
         self.graph = graph
         self.logger = logging.getLogger("TerritorialValidator")
 

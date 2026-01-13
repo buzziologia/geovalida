@@ -1,6 +1,7 @@
 # src/config.py
 from pathlib import Path
 import logging
+import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
@@ -10,8 +11,8 @@ MAPS_DIR = DATA_DIR / "04_maps"
 
 FILES = {
     # Inputs (Coloque seus CSVs/Excels aqui)
-    "utp_base": RAW_DIR / "UTP_FINAL.csv",
-    "sede_regic": RAW_DIR / "SEDE+regic.csv",
+    "utp_base": RAW_DIR / "UTP_FINAL.xlsx",
+    "sede_regic": RAW_DIR / "SEDE+regic.xlsx",
     "matriz_pessoas": RAW_DIR / "person-matrix-data",
     "impedancias": RAW_DIR / "impedance" / "impedancias_filtradas_2h.csv",
     "shapefiles": RAW_DIR / "shapefiles",
@@ -26,3 +27,15 @@ FILES = {
 # Criar pastas automaticamente se não existirem
 for folder in [INTERIM_DIR, MAPS_DIR]:
     folder.mkdir(parents=True, exist_ok=True)
+
+
+def setup_logging(level=logging.INFO):
+    """Configura logging centralizado para o projeto."""
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+        ]
+    )
+    return logging.getLogger("GeoValida")

@@ -1,0 +1,15 @@
+[theme]
+# Padrão Digital de Governo - Design System Gov.br v3.7.0
+# Cores principais conforme especificação oficial
+primaryColor = "#1351B4"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F8F8F8"
+textColor = "#333333"
+font = "sans serif"
+
+[client]
+showErrorDetails = false
+toolbarMode = "minimal"
+
+[logger]
+level = "info"

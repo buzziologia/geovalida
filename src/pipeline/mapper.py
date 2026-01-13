@@ -61,14 +61,27 @@ class UTPMapGenerator:
                     if ps.startswith('UTP_'):
                         utp_id = ps.replace('UTP_', '')
                         break
-                mapping[mun_id] = utp_id
+                if utp_id:
+                    mapping[mun_id] = utp_id
+
+        self.logger.info(f"Mapeamento: {len(mapping)} municípios → UTPs")
 
         # Aplica mapeamento de forma vetorizada
         try:
-            self.gdf_complete['UTP_ID'] = self.gdf_complete['CD_MUN'].map(mapping).astype('object')
-        except Exception:
-            # Tentar conversão segura caso tipos divergentes
-            self.gdf_complete['UTP_ID'] = self.gdf_complete['CD_MUN'].apply(lambda x: mapping.get(int(x)) if x is not None else None)
+            # Converte CD_MUN para int para matching correto
+            self.gdf_complete['CD_MUN_int'] = self.gdf_complete['CD_MUN'].astype(int)
+            self.gdf_complete['UTP_ID'] = self.gdf_complete['CD_MUN_int'].map(mapping)
+            
+            # Remove coluna temporária
+            self.gdf_complete.drop('CD_MUN_int', axis=1, inplace=True)
+            
+            # Preenche NAs com valor padrão
+            self.gdf_complete['UTP_ID'] = self.gdf_complete['UTP_ID'].fillna('SEM_UTP')
+            
+            self.logger.info(f"Sincronização completa. UTPs únicas: {self.gdf_complete['UTP_ID'].nunique()}")
+        except Exception as e:
+            self.logger.error(f"Erro ao sincronizar: {e}")
+            raise
 
         return self
 

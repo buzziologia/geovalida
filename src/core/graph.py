@@ -5,7 +5,7 @@ import logging
 from typing import Dict, List, Optional, Union
 from pathlib import Path
 
-class TerritorialHierarchyGraph:
+class TerritorialGraph:
     """
     Classe para gerenciar a hierarquia territorial brasileira e integração funcional.
     Estrutura: Brasil (Raiz) -> RMs (Nós) -> UTPs (Subnós) -> Municípios (Folhas).
@@ -172,4 +172,57 @@ class TerritorialHierarchyGraph:
                 unitary_utps.append(utp_id)
                 
         return unitary_utps
+
+    def compute_graph_coloring(self, gdf: gpd.GeoDataFrame) -> Dict[int, int]:
+        """
+        Computa coloração de grafo para municípios vizinhos (spatial adjacency).
+        Retorna dicionário: {cd_mun -> color_id}.
+        
+        Vizinhança: dois municípios são vizinhos se compartilham fronteira (touches).
+        Coloração: nenhum município vizinho possui a mesma cor.
+        """
+        if gdf.empty or 'geometry' not in gdf.columns:
+            logging.warning("GeoDataFrame vazio ou sem geometrias. Retornando cores padrão.")
+            return {}
+        
+        # 1. Criar grafo de adjacência espacial
+        adjacency_graph = nx.Graph()
+        
+        # 2. Adicionar nós (municípios)
+        for cd_mun in gdf['CD_MUN'].unique():
+            adjacency_graph.add_node(cd_mun)
+        
+        # 3. Adicionar arestas (fronteiras/adjacência)
+        gdf_indexed = gdf.set_index('CD_MUN')
+        for i, row1 in gdf.iterrows():
+            cd_mun1 = row1['CD_MUN']
+            geom1 = row1['geometry']
+            
+            # Encontrar vizinhos (faster com spatial index)
+            for j, row2 in gdf.iterrows():
+                if i >= j:  # Evitar duplicatas
+                    continue
+                cd_mun2 = row2['CD_MUN']
+                geom2 = row2['geometry']
+                
+                # Verificar se compartilham fronteira (touches ou intersects)
+                if geom1.touches(geom2) or geom1.intersects(geom2):
+                    adjacency_graph.add_edge(cd_mun1, cd_mun2)
+        
+        # 4. Greedy coloring algorithm (Welsh-Powell)
+        coloring = {}
+        for node in sorted(adjacency_graph.nodes(), key=lambda x: adjacency_graph.degree(x), reverse=True):
+            # Encontrar cores usadas pelos vizinhos
+            neighbor_colors = {coloring[neighbor] for neighbor in adjacency_graph.neighbors(node) 
+                              if neighbor in coloring}
+            
+            # Atribuir a menor cor disponível
+            color = 0
+            while color in neighbor_colors:
+                color += 1
+            
+            coloring[node] = color
+        
+        logging.info(f"Coloração de grafo computada: {len(coloring)} municípios com {max(coloring.values()) + 1} cores")
+        return coloring
 
