@@ -1,211 +1,119 @@
 # src/interface/components/map_viewer.py
 import streamlit as st
-import folium
+import leafmap.foliumap as leafmap
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import logging
-from typing import Optional, Dict
-import io
+from typing import Dict, Any
 
-
-# Paleta de cores Gov.br para coloração de grafo
+# Paleta de cores oficial Padrão Digital de Governo (Gov.br)
 GOVBR_COLORS = [
-    "#1351B4",  # Azul Primário
-    "#168821",  # Verde Sucesso
-    "#E52207",  # Vermelho Erro
-    "#FFCD07",  # Amarelo Alerta
-    "#155BCB",  # Azul Info
-    "#00A871",  # Verde Vivid
-    "#0076D6",  # Azul Vivid
-    "#0C326F",  # Azul Dark
-    "#5AB9B3",  # Cyan
-    "#8289FF",  # Indigo
-    "#AD79E9",  # Violet
-    "#BE32D0",  # Magenta
+    "#1351B4", "#168821", "#E52207", "#FFCD07", "#155BCB", 
+    "#00A871", "#0076D6", "#0C326F", "#5AB9B3", "#8289FF", 
+    "#AD79E9", "#BE32D0"
 ]
-
-
-@st.cache_data
-def get_color_for_municipality(cd_mun: int, coloring: Dict[int, int]) -> str:
-    """Retorna cor hex para um município baseado na coloração de grafo."""
-    if cd_mun not in coloring:
-        return "#CCCCCC"  # Cinza padrão
-    
-    color_idx = coloring[cd_mun] % len(GOVBR_COLORS)
-    return GOVBR_COLORS[color_idx]
-
 
 def create_interactive_map(gdf: gpd.GeoDataFrame, 
                            coloring: Dict[int, int],
-                           seats: Dict[int, int],  # {utp_id -> cd_mun_seed}
-                           title: str = "Mapa de UTPs do Brasil") -> folium.Map:
+                           seats: Dict[Any, int]) -> leafmap.Map:
     """
-    Cria mapa interativo com folium contendo:
-    - Municipios coloridos por coloração de grafo
-    - Sedes com contorno em destaque
-    - Tooltips com dados ao passar mouse
+    Cria um mapa interativo utilizando leafmap para melhor performance.
     """
     
-    # 1. Calcular centro do mapa (centróide do Brasil)
-    center_lat = gdf.geometry.centroid.y.mean()
-    center_lon = gdf.geometry.centroid.x.mean()
-    
-    # 2. Criar mapa base
-    m = folium.Map(
-        location=[center_lat, center_lon],
-        zoom_start=4,
-        tiles="OpenStreetMap",
-        prefer_canvas=True
+    # 1. Inicializar o mapa (centralizado no Brasil)
+    # O leafmap facilita a configuração inicial e o controlo de camadas
+    m = leafmap.Map(
+        center=[-15.78, -47.93], 
+        zoom=4, 
+        draw_control=False,
+        measure_control=False,
+        fullscreen_control=True
     )
     
-    # 3. Adicionar municípios como camada
-    for idx, row in gdf.iterrows():
-        cd_mun = row['CD_MUN']
-        nm_mun = row.get('NM_MUN', f"Município {cd_mun}")
-        utp_id = row.get('UTP_ID', 'SEM_UTP')
+    # Adiciona uma camada de fundo leve (CartoDB Positron)
+    m.add_basemap("CartoDB.Positron")
+
+    # Conjunto de IDs de municípios que são sedes
+    seat_ids = set(seats.values())
+
+    # 2. Definição da lógica de estilo (Cores e Bordas)
+    def style_fn(feature):
+        cd_mun = feature['properties'].get('CD_MUN')
+        # Obtém a cor baseada na coloração de grafo
+        color_idx = coloring.get(cd_mun, 0) % len(GOVBR_COLORS)
+        color = GOVBR_COLORS[color_idx]
         
-        # Obter cor baseada em coloração de grafo
-        color = get_color_for_municipality(cd_mun, coloring)
+        is_seed = cd_mun in seat_ids
         
-        # Verificar se é sede de UTP
-        is_seed = cd_mun in seats.values()
-        weight = 3 if is_seed else 1
-        dash_array = [5, 5] if is_seed else []
-        
-        # Criar popup/tooltip com informações
-        popup_html = f"""
-        <div style="font-family: Arial; font-size: 12px; width: 200px;">
-            <b>{nm_mun}</b><br>
-            Código: {cd_mun}<br>
-            UTP: {utp_id}<br>
-            {'<b style="color: #1351B4;">★ SEDE de UTP</b><br>' if is_seed else ''}
-            Cor: {color}
-        </div>
-        """
-        
-        popup = folium.Popup(popup_html, max_width=250)
-        
-        # Adicionar feature ao mapa
-        try:
-            if row['geometry'].geom_type == 'Polygon':
-                folium.Polygon(
-                    locations=[(lat, lon) for lon, lat in row['geometry'].exterior.coords],
-                    popup=popup,
-                    tooltip=nm_mun,
-                    color=color,
-                    weight=weight,
-                    opacity=0.7,
-                    fill_opacity=0.6,
-                    fill_color=color
-                ).add_to(m)
-            elif row['geometry'].geom_type == 'MultiPolygon':
-                for poly in row['geometry'].geoms:
-                    folium.Polygon(
-                        locations=[(lat, lon) for lon, lat in poly.exterior.coords],
-                        popup=popup,
-                        tooltip=nm_mun,
-                        color=color,
-                        weight=weight,
-                        opacity=0.7,
-                        fill_opacity=0.6,
-                        fill_color=color
-                    ).add_to(m)
-        except Exception as e:
-            logging.warning(f"Erro ao adicionar geometria para {nm_mun}: {e}")
-            continue
-    
-    # 4. Adicionar legenda
-    legend_html = '''
-    <div style="position: fixed; 
-            bottom: 50px; right: 50px; width: 250px; height: auto; 
-            background-color: white; border: 2px solid #1351B4; z-index: 9999;
-            border-radius: 5px; padding: 10px; font-size: 12px; font-family: Arial;">
-        <p style="margin: 0; font-weight: bold; color: #1351B4;">Legenda</p>
-        <hr style="margin: 5px 0;">
-        <p style="margin: 3px 0;">
-            <span style="display: inline-block; width: 15px; height: 15px; 
-                  background-color: #1351B4; border: 2px solid #1351B4;"></span>
-            Municípios (Coloração Grafo)
-        </p>
-        <p style="margin: 3px 0;">
-            <span style="display: inline-block; width: 15px; height: 15px; 
-                  border: 3px solid #1351B4; background-color: transparent;"></span>
-            Sede de UTP
-        </p>
-        <p style="margin: 3px 0; font-size: 11px; color: #666;">
-            Cores: Nenhuma UTP vizinha <br>compartilha cor
-        </p>
-    </div>
-    '''
-    m.get_root().html.add_child(folium.Element(legend_html))
-    
+        return {
+            'fillColor': color,
+            'color': '#1351B4' if is_seed else '#333333', # Destaque azul para sedes
+            'weight': 3 if is_seed else 0.5,
+            'fillOpacity': 0.7
+        }
+
+    # 3. Adicionar os dados GeoJSON com o leafmap
+    # O leafmap lida com a conversão para GeoJSON de forma otimizada
+    m.add_gdf(
+        gdf,
+        layer_name="Unidades de Planeamento",
+        style_function=style_fn,
+        highlight_function=lambda x: {'fillOpacity': 0.9, 'weight': 4, 'color': '#FFFFFF'},
+        info_mode=None, # Desativamos o popup padrão para usar o tooltip
+        tooltip=leafmap.folium.GeoJsonTooltip(
+            fields=['NM_MUN', 'CD_MUN', 'UTP_ID'], # COLUNA CORRETA: UTP_ID
+            aliases=['Município:', 'Código IBGE:', 'ID UTP:'],
+            localize=True,
+            sticky=False,
+            labels=True,
+            style="""
+                background-color: #FFFFFF;
+                border: 2px solid #1351B4;
+                border-radius: 5px;
+                box-shadow: 3px 3px rgba(0,0,0,0.2);
+                font-family: sans-serif;
+            """
+        )
+    )
+
+    # 4. Adicionar Legenda de forma simples com leafmap
+    # Podemos criar um dicionário de categorias para a legenda
+    legend_dict = {
+        'Sede de UTP (Destaque Azul)': '#1351B4',
+        'Município Membro': '#CCCCCC'
+    }
+    m.add_legend(title="Legenda Territorial", legend_dict=legend_dict)
+
     return m
 
-
 def render_maps(selected_step: str, manager=None):
-    """Renderiza mapas conforme a etapa selecionada."""
-    
-    if manager is None:
-        st.warning("Manager não inicializado", icon="⚠")
+    """Renderiza os mapas no Streamlit utilizando a integração nativa do leafmap."""
+    if manager is None or manager.gdf is None or manager.gdf.empty:
+        st.warning("Dados não carregados para visualização.", icon="⚠️")
         return
-    
-    if manager.gdf is None or manager.gdf.empty:
-        st.warning("Carregue os dados para visualizar o mapa", icon="⚠")
-        return
-    
-    # Computar coloração de grafo
-    if manager.graph is None:
-        st.error("Grafo não inicializado")
-        return
-    
+
     try:
-        st.info("Computando coloração de grafo...")
-        coloring = manager.graph.compute_graph_coloring(manager.gdf)
-        st.success(f"Coloração concluída: {len(coloring)} municípios com cores")
+        with st.spinner("A processar mapa otimizado com leafmap..."):
+            # 1. Sincronizar dados do Grafo com o GeoDataFrame
+            manager.map_generator.sync_with_graph(manager.graph)
+            
+            # 2. Garantir projeção WGS84
+            gdf_map = manager.map_generator.gdf_complete.copy()
+            if gdf_map.crs != "EPSG:4326":
+                gdf_map = gdf_map.to_crs(epsg=4326)
+
+            # 3. Calcular coloração de grafo
+            coloring = manager.graph.compute_graph_coloring(gdf_map)
+            seats = manager.graph.utp_seeds
+
+            # 4. Criar o mapa leafmap
+            m = create_interactive_map(gdf_map, coloring, seats)
+
+            # 5. Renderizar no Streamlit
+            # O leafmap possui um método nativo para isto
+            m.to_streamlit(height=650)
+            
+            st.caption(f"Visualização Otimizada: {selected_step} | Total: {len(gdf_map)} municípios")
+
     except Exception as e:
-        st.error(f"Erro ao computar coloração: {e}")
-        logging.error(f"Erro na coloração: {e}", exc_info=True)
-        return
-    
-    # Mapa de sedes (utp_id -> cd_mun)
-    seats = manager.graph.utp_seeds if hasattr(manager.graph, 'utp_seeds') else {}
-    
-    try:
-        st.info("Gerando mapa interativo...")
-        # Criar mapa interativo
-        m = create_interactive_map(
-            gdf=manager.gdf,
-            coloring=coloring,
-            seats=seats,
-            title=f"Mapa - {selected_step}"
-        )
-        
-        st.info("Renderizando mapa no navegador...")
-        # Renderizar mapa com streamlit components
-        map_html = m._repr_html_()
-        st.components.v1.html(map_html, width=725, height=600)
-        
-        st.success("Mapa renderizado com sucesso!")
-        
-    except Exception as e:
-        st.error(f"Erro ao gerar mapa: {e}")
-        logging.error(f"Erro ao renderizar mapa: {e}", exc_info=True)
-
-
-def render_map(gdf: gpd.GeoDataFrame, title: str = "Mapa UTPs") -> None:
-    """Renderiza um mapa estático em Streamlit."""
-    if gdf is None or gdf.empty:
-        st.warning("Nenhum dado geográfico para visualizar")
-        return
-    
-    fig, ax = plt.subplots(figsize=(12, 10))
-    try:
-        gdf.plot(ax=ax, column='UTP_ID', cmap='tab20', legend=True, alpha=0.7)
-        ax.set_title(title, fontsize=16, fontweight='bold')
-        st.pyplot(fig)
-    except Exception as e:
-        st.error(f"Erro ao renderizar mapa: {e}")
-    finally:
-        plt.close(fig)
-
-
+        st.error(f"Erro na renderização leafmap: {str(e)}")
+        logging.error(f"Erro no map_viewer: {e}", exc_info=True)
