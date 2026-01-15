@@ -2,120 +2,71 @@
 import streamlit as st
 import folium
 import geopandas as gpd
-import json
 import logging
 from typing import Dict, Any
 
-# Paleta de cores oficial Padrão Digital de Governo (Gov.br)
-GOVBR_COLORS = [
-    "#1351B4", "#168821", "#E52207", "#FFCD07", "#155BCB", 
-    "#00A871", "#0076D6", "#0C326F", "#5AB9B3", "#8289FF", 
-    "#AD79E9", "#BE32D0"
+# Paleta de Alto Contraste (Cores bem distintas para evitar confusão)
+DISTINCT_COLORS = [
+    "#E6194B", "#3CB44B", "#FFE119", "#4363D8", "#F58231", 
+    "#911EB4", "#42E4FF", "#F032E6", "#BFEF45", "#FABEBE",
+    "#008080", "#E6BEFF", "#9A6324", "#FFFAC8", "#800000"
 ]
 
 def create_interactive_map(gdf: gpd.GeoDataFrame, 
                            coloring: Dict[int, int],
                            seats: Dict[Any, int]) -> folium.Map:
     """
-    Cria um mapa interativo utilizando folium puro com tooltips e popups.
-    Simplifica geometrias para reduzir tamanho do HTML.
+    Cria um mapa interativo com cores sólidas e alto contraste.
+    Resolve a diferença de tons usando fillOpacity: 1.0.
     """
-    
-    # 1. Inicializar o mapa (centralizado no Brasil)
-    m = folium.Map(
-        location=[-15.78, -47.93], 
-        zoom_start=4,
-        tiles="CartoDB positron"
-    )
-    
-    # Conjunto de IDs de municípios que são sedes
+    m = folium.Map(location=[-15.78, -47.93], zoom_start=4, tiles="CartoDB positron")
     seat_ids = set(seats.values())
     
-    # 2. Simplificar geometrias com preservação de topologia - tolerance de 0.003 graus (~300m)
+    # Simplificação leve para performance
     gdf_simplified = gdf.copy()
-    # Usar preserve_topology=True para evitar deformações e self-intersections
     gdf_simplified['geometry'] = gdf_simplified.geometry.simplify(tolerance=0.003, preserve_topology=True)
     
-    # 3. Iterador pelas geometrias do GeoDataFrame
-    for idx, row in gdf_simplified.iterrows():
-        cd_mun = row.get('CD_MUN')
-        nm_mun = row.get('NM_MUN', 'Sem Nome')
-        utp_id = row.get('UTP_ID', 'N/A')
-        geometry = row.geometry
-        
-        # 4. Determinar cores e estilos baseado na coloração do grafo
-        color_idx = coloring.get(cd_mun, 0) % len(GOVBR_COLORS)
-        fill_color = GOVBR_COLORS[color_idx]
-        
-        is_seed = cd_mun in seat_ids
-        border_color = "#000000" if is_seed else "#808080"  # Preto para sedes, cinza para membros
-        border_weight = 2.5 if is_seed else 1.5
-        
-        # 5. Criar conteúdo do popup
-        popup_text = f"""
-        <div style="font-family: Arial, sans-serif; width: 250px;">
-            <b style="color: #1351B4; font-size: 14px;">{nm_mun}</b><br>
-            <hr style="margin: 5px 0; border: none; border-top: 1px solid #ccc;">
-            <table style="width: 100%; font-size: 12px;">
-                <tr><td><b>Código IBGE:</b></td><td>{cd_mun}</td></tr>
-                <tr><td><b>ID UTP:</b></td><td>{utp_id}</td></tr>
-                <tr><td><b>Status:</b></td><td>{'<span style="color: #168821;">🔵 Sede</span>' if is_seed else 'Membro'}</td></tr>
-            </table>
-        </div>
-        """
-        
-        # 6. Criar tooltip (ao passar o mouse)
-        tooltip_text = f"{nm_mun} (CD: {cd_mun})"
-        
-        # 7. Adicionar a geometria ao mapa como GeoJson com tooltip
-        if geometry.geom_type == 'Polygon':
-            # Swap coordinates: shapely (lon, lat) -> folium (lat, lon)
-            coords = [(y, x) for x, y in geometry.exterior.coords]
-            folium.Polygon(
-                locations=coords,
-                color=border_color,
-                weight=border_weight,
-                fillColor=fill_color,
-                fillOpacity=0.8,
-                popup=folium.Popup(popup_text, max_width=300),
-                tooltip=folium.Tooltip(tooltip_text, sticky=False)
-            ).add_to(m)
-        elif geometry.geom_type == 'MultiPolygon':
-            for part in geometry.geoms:
-                # Swap coordinates: shapely (lon, lat) -> folium (lat, lon)
-                coords = [(y, x) for x, y in part.exterior.coords]
-                folium.Polygon(
-                    locations=coords,
-                    color=border_color,
-                    weight=border_weight,
-                    fillColor=fill_color,
-                    fillOpacity=0.8,
-                    popup=folium.Popup(popup_text, max_width=300),
-                    tooltip=folium.Tooltip(tooltip_text, sticky=False)
+    for _, row in gdf_simplified.iterrows():
+        try:
+            cd_mun = int(row.get('CD_MUN'))
+            nm_mun = row.get('NM_MUN', 'N/A')
+            utp_id = row.get('UTP_ID', 'N/A')
+            
+            # Busca cor sólida do dicionário
+            color_idx = coloring.get(cd_mun, 0) % len(DISTINCT_COLORS)
+            fill_color = DISTINCT_COLORS[color_idx]
+            is_seed = cd_mun in seat_ids
+
+            # Popups e Tooltips
+            popup_text = f"<b>{nm_mun}</b><br>UTP: {utp_id}<br>Status: {'Sede' if is_seed else 'Membro'}"
+            
+            # Desenho com Opacidade 1.0 (Resolve a diferença de tons)
+            if row.geometry and row.geometry.geom_type in ['Polygon', 'MultiPolygon']:
+                folium.GeoJson(
+                    row.geometry,
+                    style_function=lambda x, fc=fill_color, seed=is_seed: {
+                        'fillColor': fc,
+                        'color': 'black' if seed else '#999999',
+                        'weight': 2.0 if seed else 1.0,
+                        'fillOpacity': 1.0 # COR SÓLIDA: Resolve o tom diferente
+                    },
+                    tooltip=f"{nm_mun} (CD: {cd_mun})",
+                    popup=folium.Popup(popup_text, max_width=300)
                 ).add_to(m)
+        except Exception as e:
+            logging.error(f"Erro ao processar município no mapa: {e}")
+            continue
     
-    # 8. Adicionar Legenda
-    legend_html = """
+    # Adicionar Legenda
+    legend_html = f"""
     <div style="position: fixed; 
-                bottom: 50px; right: 50px; width: 240px; height: auto;
-                background-color: white; border: 1px solid #DDDDDD; border-radius: 6px;
-                z-index: 9999; font-size: 12px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-        <div style="font-weight: 700; color: #1351B4; font-size: 13px; margin-bottom: 10px;">Legenda</div>
-        <div style="margin-bottom: 8px;">
-            <div style="display: flex; align-items: center; margin-bottom: 6px;">
-                <div style="width: 16px; height: 16px; background-color: #1351B4; border: 2px solid #000; border-radius: 2px; margin-right: 8px;"></div>
-                <span>Sede da UTP</span>
-            </div>
-            <div style="font-size: 11px; color: #666; margin-left: 24px;">Contorno preto destacado</div>
-        </div>
-        <div>
-            <div style="display: flex; align-items: center; margin-bottom: 6px;">
-                <div style="width: 16px; height: 16px; background-color: #E52207; border: 2px solid #808080; border-radius: 2px; margin-right: 8px;"></div>
-                <span>Município Membro</span>
-            </div>
-            <div style="font-size: 11px; color: #666; margin-left: 24px;">Contorno cinza</div>
-        </div>
+                bottom: 50px; right: 50px; width: 220px; height: auto;
+                background-color: white; border: 2px solid grey; z-index: 9999; font-size: 14px;
+                padding: 10px; opacity: 0.9; border-radius: 5px;">
+        <p><b>Legenda</b></p>
+        <p><i class="fa fa-square" style="color:black"></i> Sede de UTP (Borda Preta)</p>
+        <p><i class="fa fa-square" style="color:#666666"></i> Município Membro</p>
+        <p><i>Cores sólidas representam diferentes UTPs.</i></p>
     </div>
     """
     m.get_root().html.add_child(folium.Element(legend_html))
@@ -123,41 +74,28 @@ def create_interactive_map(gdf: gpd.GeoDataFrame,
     return m
 
 def render_maps(selected_step: str, manager=None):
-    """Renderiza os mapas no Streamlit utilizando folium puro."""
-    if manager is None or manager.gdf is None or manager.gdf.empty:
-        st.warning("Dados não carregados para visualização.", icon="⚠️")
+    """Renderiza os mapas no Streamlit."""
+    if manager is None or manager.gdf is None:
+        st.warning("Dados não carregados.")
         return
-
     try:
-        with st.spinner("A processar mapa interativo..."):
-            # 1. Sincronizar dados do Grafo com o GeoDataFrame
+        with st.spinner("Gerando visualização geográfica..."):
             manager.map_generator.sync_with_graph(manager.graph)
-            
-            # 2. Garantir projeção WGS84
             gdf_map = manager.map_generator.gdf_complete.copy()
             if gdf_map.crs != "EPSG:4326":
                 gdf_map = gdf_map.to_crs(epsg=4326)
-
-            # 3. Calcular coloração de grafo
             coloring = manager.graph.compute_graph_coloring(gdf_map)
             seats = manager.graph.utp_seeds
-
-            # 4. Criar o mapa folium
+            
             m = create_interactive_map(gdf_map, coloring, seats)
-
-            # 5. Renderizar no Streamlit usando st_folium ou components.v1.html
+            
             from streamlit.components.v1 import html
+            html(m._repr_html_(), height=700)
             
-            # Salvar mapa em HTML e renderizar
-            map_html = m._repr_html_()
-            html(map_html, height=700)
-            
-            st.caption(f"Visualização: {selected_step} | Total: {len(gdf_map)} municípios | Cores usadas: {len(set(coloring.values()))}")
-
+            st.caption(f"Mapa: {selected_step} | Cores distintas: {len(set(coloring.values()))}")
     except Exception as e:
-        st.error(f"Erro na renderização do mapa: {str(e)}")
-        logging.error(f"Erro no map_viewer: {e}", exc_info=True)
-
+        st.error(f"Erro no mapa: {e}")
+        logging.error(f"Erro na renderização do mapa: {e}", exc_info=True)
 
 def render_maps_filtered(selected_step: str, manager, gdf_filtered: gpd.GeoDataFrame, 
                          coloring: Dict[int, int], seats: Dict[Any, int]):
@@ -167,16 +105,12 @@ def render_maps_filtered(selected_step: str, manager, gdf_filtered: gpd.GeoDataF
         return
 
     try:
-        # Criar o mapa folium
+        if gdf_filtered.crs != "EPSG:4326":
+            gdf_filtered = gdf_filtered.to_crs(epsg=4326)
+            
         m = create_interactive_map(gdf_filtered, coloring, seats)
 
-        # Renderizar no Streamlit
         from streamlit.components.v1 import html
-        map_html = m._repr_html_()
-        html(map_html, height=700)
-        
-        st.caption(f"{selected_step} | Total: {len(gdf_filtered)} municípios")
-
+        html(m._repr_html_(), height=700)
     except Exception as e:
-        st.error(f"Erro na renderização do mapa: {str(e)}")
-        logging.error(f"Erro no map_viewer: {e}", exc_info=True)
+        st.error(f"Erro no mapa filtrado: {e}")

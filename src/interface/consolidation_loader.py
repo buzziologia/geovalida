@@ -94,13 +94,13 @@ class ConsolidationLoader:
     
     def apply_consolidations_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Aplica as consolidações a um dataframe.
+        Aplica as consolidações a um dataframe, cuidando da lógica de sedes.
         
         Args:
-            df: DataFrame com coluna 'utp_id'
+            df: DataFrame com colunas 'utp_id', 'sede_utp', 'nm_mun'
         
         Returns:
-            DataFrame com UTPs consolidadas
+            DataFrame com UTPs consolidadas e sedes atualizadas
         """
         if not self.is_executed():
             return df.copy()
@@ -108,10 +108,31 @@ class ConsolidationLoader:
         df_consolidated = df.copy()
         mapping = self.get_utps_mapping()
         
-        # Aplicar mapeamento
-        df_consolidated['utp_id'] = df_consolidated['utp_id'].map(
-            lambda x: mapping.get(x, x)
-        )
+        if mapping:
+            # 1. Identificar quem vai mudar de UTP
+            changing_mask = df_consolidated['utp_id'].isin(mapping.keys())
+            
+            # 2. Resetar flag de sede para quem está sendo movido
+            # Se uma UTP unitária é englobada, seu único município deixa de ser sede
+            df_consolidated.loc[changing_mask, 'sede_utp'] = False
+            
+            # 3. Aplicar o mapeamento de UTP IDs
+            df_consolidated['utp_id'] = df_consolidated['utp_id'].map(
+                lambda x: mapping.get(x, x)
+            )
+            
+            # 4. Atualizar o nome da sede (nm_sede) se a coluna existir
+            # Precisamos mapear o UTP_ID final para o nome da sede real daquela UTP
+            if 'nm_sede' in df_consolidated.columns:
+                # Criar um mapeamento ATUALIZADO de UTP -> Nome da Sede
+                # Usamos apenas quem ainda é sede_utp == True após o reset acima
+                sedes_atuais = df_consolidated[df_consolidated['sede_utp'] == True]
+                
+                # Identifica se a coluna de nome é 'nm_mun' (df) ou 'NM_MUN' (gdf)
+                name_col = 'nm_mun' if 'nm_mun' in sedes_atuais.columns else 'NM_MUN'
+                if name_col in sedes_atuais.columns:
+                    sede_mapper = sedes_atuais.set_index('utp_id')[name_col].to_dict()
+                    df_consolidated['nm_sede'] = df_consolidated['utp_id'].map(sede_mapper).fillna('')
         
         return df_consolidated
     

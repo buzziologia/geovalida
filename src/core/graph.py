@@ -55,7 +55,10 @@ class TerritorialGraph:
             
         self.hierarchy.add_node(mun_id, type='municipality', name=nm_mun, level=3)
         self.hierarchy.add_edge(utp_node, mun_id)
-        self.functional.add_node(mun_id, name=nm_mun)
+        
+        # Mantém nó no grafo funcional para compatibilidade
+        if not self.functional.has_node(mun_id):
+            self.functional.add_node(mun_id, name=nm_mun)
 
     def move_municipality(self, cd_mun: int, target_utp_id: Union[str, int]):
         """Troca um município de UTP, removendo o vínculo anterior."""
@@ -67,7 +70,7 @@ class TerritorialGraph:
         
         # Remove arestas de hierarquia atuais (um mun só tem um pai UTP)
         old_parents = [p for p in self.hierarchy.predecessors(mun_id) 
-                       if self.hierarchy.nodes[p]['type'] == 'utp']
+                       if self.hierarchy.nodes[p].get('type') == 'utp']
         for p in old_parents:
             self.hierarchy.remove_edge(p, mun_id)
             
@@ -150,7 +153,6 @@ class TerritorialGraph:
         pd.DataFrame(rows).to_csv(path, index=False, sep=';')
         logging.info(f"Hierarquia exportada para {path}")
 
-    
     def get_unitary_utps(self) -> List[str]:
         """
         Identifica e retorna uma lista com os IDs de todas as UTPs 
@@ -174,78 +176,50 @@ class TerritorialGraph:
         return unitary_utps
 
     def compute_graph_coloring(self, gdf: gpd.GeoDataFrame) -> Dict[int, int]:
-        """
-        Computa coloração de grafo otimizada por UTPs e não por municípios.
-        Todos os municípios da mesma UTP terão a mesma cor.
-        UTPs vizinhas terão cores diferentes.
-        """
-        if gdf.empty:
+        """Calcula a coloração mínima usando projeção métrica para precisão."""
+        if gdf is None or gdf.empty:
             return {}
 
-        logging.info("Iniciando coloração baseada em UTPs...")
+        logging.info("Calculando coloração topológica mínima (EPSG:5880)...")
         
-        # 0. Verificar se UTP_ID existe e limpar NAs
-        if 'UTP_ID' not in gdf.columns:
-            logging.error("Coluna 'UTP_ID' não encontrada no GeoDataFrame")
-            return {}
+        # 1. Limpeza e Dissolve (Cria o mapa de UTPs)
+        gdf_clean = gdf.dropna(subset=['UTP_ID', 'geometry']).copy()
+        gdf_clean['UTP_ID'] = gdf_clean['UTP_ID'].astype(str)
+        gdf_utps = gdf_clean[['UTP_ID', 'geometry']].dissolve(by='UTP_ID')
         
-        # Remove linhas com UTP_ID faltando
-        gdf_clean = gdf.dropna(subset=['UTP_ID']).copy()
-        if gdf_clean.empty:
-            logging.error("Nenhum município com UTP_ID válido")
-            return {}
+        # 2. Projeção métrica para buffer preciso
+        gdf_projected = gdf_utps.to_crs(epsg=5880)
         
-        # 1. Agrupar (Dissolver) geometrias por UTP para criar polígonos das UTPs
-        #    Mantém apenas a geometria para performance
-        try:
-            gdf_utps = gdf_clean[['UTP_ID', 'geometry']].copy()
-            gdf_utps = gdf_utps.dissolve(by='UTP_ID', aggfunc='first')
-            gdf_utps = gdf_utps.reset_index()  # Converte UTP_ID de índice para coluna
-            logging.info(f"Dissolve concluído: {len(gdf_utps)} UTPs criadas")
-        except Exception as e:
-            logging.error(f"Erro ao dissolver UTPs: {e}")
-            logging.error(f"Colunas do GDF: {gdf_clean.columns.tolist()}")
-            return {}
+        G = nx.Graph()
+        G.add_nodes_from(gdf_projected.index)
 
-        # 2. Criar grafo de adjacência das UTPs
-        adjacency_graph = nx.Graph()
-        # Adiciona todas as UTPs como nós (agora está em coluna 'UTP_ID')
-        adjacency_graph.add_nodes_from(gdf_utps['UTP_ID'].unique())
-
-        # 3. Usar spatial join para encontrar UTPs vizinhas
-        #    Usamos gdf_utps contra ele mesmo
-        try:
-            neighbors = gpd.sjoin(gdf_utps, gdf_utps, predicate='touches', how='inner')
-            
-            # Filtra auto-relacionamentos (UTP tocando ela mesma)
-            neighbors = neighbors[neighbors['UTP_ID_left'] != neighbors['UTP_ID_right']]
-            
-            # 4. Adicionar arestas ao grafo
-            edges = zip(neighbors['UTP_ID_left'], neighbors['UTP_ID_right'])
-            adjacency_graph.add_edges_from(edges)
-            
-        except Exception as e:
-            logging.error(f"Erro ao calcular adjacência de UTPs: {e}")
-            # Fallback: colorir aleatoriamente ou sequencialmente se falhar
-            return {}
-
-        # 5. Algoritmo Greedy de Coloração (Strategy: DSATUR)
-        utp_coloring = nx.coloring.greedy_color(adjacency_graph, strategy='DSATUR')
+        # 3. Identificação de vizinhos com Buffer de 100m (Mais robusto para gaps)
+        logging.info(f"Analisando adjacência para {len(gdf_projected)} UTPs com buffer de 100m...")
+        gdf_left = gdf_projected.copy()
+        gdf_left['geometry'] = gdf_left.geometry.buffer(100)
         
-        # 6. Mapear a cor da UTP de volta para cada município
-        #    Resultado esperado: cd_mun -> color_index
+        gdf_right = gdf_projected.reset_index()[['UTP_ID', 'geometry']].rename(
+            columns={'UTP_ID': 'ID_RIGHT'}
+        )
+        
+        joins = gpd.sjoin(gdf_left, gdf_right, predicate='intersects', how='inner')
+
+        for idx_left, row in joins.iterrows():
+            idx_right = row['ID_RIGHT']
+            if str(idx_left) != str(idx_right):
+                G.add_edge(str(idx_left), str(idx_right))
+
+        logging.info(f"Grafo de adjacência construído: {G.number_of_nodes()} nós e {G.number_of_edges()} conexões.")
+
+        # 4. Coloração Mínima (DSATUR garante menos cores em mapas geográficos)
+        utp_color_map = nx.coloring.greedy_color(G, strategy='DSATUR')
+        
+        # 5. Mapeamento Final: cd_mun (int) -> cor_id
         final_coloring = {}
-        
-        # Cria um lookup UTP_ID -> Cor
-        # Itera sobre o GDF original (LIMPO) para atribuir a cor
         for _, row in gdf_clean.iterrows():
-            cd_mun = row['CD_MUN']
-            utp_id = row['UTP_ID']
+            cd_mun = int(row['CD_MUN'])
+            utp_id = str(row['UTP_ID'])
+            final_coloring[cd_mun] = utp_color_map.get(utp_id, 0)
             
-            # Se a UTP foi colorida, atribui a cor. Se não (casos isolados?), usa cor 0.
-            color = utp_coloring.get(utp_id, 0)
-            final_coloring[cd_mun] = color
-            
-        logging.info(f"Coloração de UTPs concluída: {len(utp_coloring)} UTPs coloridas mapeadas para municípios.")
+        logging.info(f"Coloração concluída: {max(utp_color_map.values(), default=0) + 1} cores.")
         return final_coloring
-

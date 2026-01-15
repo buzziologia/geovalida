@@ -179,6 +179,25 @@ class DataLoader:
         
         return df[df.get('nm_mun', '').str.lower().str.contains(term.lower(), na=False)]
     
+    
+    @classmethod
+    def get_airport_data(cls, cd_mun: int) -> Optional[Dict]:
+        """
+        Retorna dados de aeroporto para um município.
+        
+        Args:
+            cd_mun: Código IBGE do município
+            
+        Returns:
+            Dict com dados do aeroporto (icao, cidade, passageiros_anual) ou None
+        """
+        municipio = cls.get_municipio_by_cd(cd_mun)
+        
+        if municipio is None:
+            return None
+        
+        return municipio.get('aeroporto')
+    
     @classmethod
     def get_municipios_by_uf(cls, uf: str) -> pd.DataFrame:
         """Retorna todos os municipios de um estado"""

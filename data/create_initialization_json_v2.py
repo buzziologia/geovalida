@@ -83,6 +83,21 @@ def load_airports():
     file_path = RAW_DATA_DIR / "Aeros_comercial(Planilha1).csv"
     try:
         df = pd.read_csv(file_path, sep=';', encoding='utf-8')
+        
+        # Garantir que as colunas esperadas existem
+        expected_cols = ['ICAO', 'Cidade', 'Passageiros processados', 'COD IBGE']
+        missing_cols = [col for col in expected_cols if col not in df.columns]
+        if missing_cols:
+            logger.warning(f"  ⚠ Colunas ausentes no arquivo de aeroportos: {missing_cols}")
+        
+        # Converter COD IBGE para numérico
+        if 'COD IBGE' in df.columns:
+            df['COD IBGE'] = pd.to_numeric(df['COD IBGE'], errors='coerce')
+        
+        # Converter passageiros para numérico
+        if 'Passageiros processados' in df.columns:
+            df['Passageiros processados'] = pd.to_numeric(df['Passageiros processados'], errors='coerce')
+        
         logger.info(f"  ✓ Carregados {len(df)} aeroportos")
         return df
     except Exception as e:
@@ -169,12 +184,21 @@ def consolidate_data(
     airports_lookup = {}
     if not df_airports.empty:
         try:
-            cd_col = next((col for col in df_airports.columns if 'cd' in col.lower() or 'mun' in col.lower()), df_airports.columns[0])
-            sigla_col = next((col for col in df_airports.columns if 'sigla' in col.lower() or 'aero' in col.lower()), None)
-            
-            if sigla_col:
-                df_airports[cd_col] = pd.to_numeric(df_airports[cd_col], errors='coerce')
-                airports_lookup = df_airports.dropna(subset=[cd_col]).set_index(cd_col).to_dict('index')
+            # Usar colunas explícitas do arquivo Aeros_comercial
+            if 'COD IBGE' in df_airports.columns:
+                # Remover linhas com COD IBGE inválido
+                df_airports_clean = df_airports.dropna(subset=['COD IBGE']).copy()
+                
+                # Criar dicionário estruturado: {cod_ibge: {icao, cidade, passageiros}}
+                for _, row in df_airports_clean.iterrows():
+                    cod_ibge = int(row['COD IBGE'])
+                    airports_lookup[cod_ibge] = {
+                        'icao': row.get('ICAO', ''),
+                        'cidade': row.get('Cidade', ''),
+                        'passageiros_anual': int(row.get('Passageiros processados', 0)) if pd.notna(row.get('Passageiros processados')) else 0
+                    }
+                
+                logger.info(f"  ✓ Processados {len(airports_lookup)} aeroportos comerciais")
         except Exception as e:
             logger.warning(f"Erro ao processar aeroportos: {e}")
     
@@ -323,12 +347,13 @@ def consolidate_data(
             if cd_mun in airports_lookup:
                 try:
                     aero_info = airports_lookup[cd_mun]
-                    sigla = next((v for k, v in aero_info.items() if 'sigla' in k.lower()), '')
-                    passageiros = next((int(v) if isinstance(v, (int, float)) else 0 
-                                       for k, v in aero_info.items() if 'pass' in k.lower()), 0)
-                    mun_data['aeroporto'] = {'sigla': str(sigla), 'passageiros_anual': passageiros}
-                except:
-                    pass
+                    mun_data['aeroporto'] = {
+                        'icao': str(aero_info.get('icao', '')),
+                        'cidade': str(aero_info.get('cidade', '')),
+                        'passageiros_anual': int(aero_info.get('passageiros_anual', 0))
+                    }
+                except Exception as e:
+                    logger.warning(f"Erro ao adicionar aeroporto para município {cd_mun}: {e}")
             
             # Adicionar matriz modal (origem-destino-viagens)
             for modal_name in modal_data:

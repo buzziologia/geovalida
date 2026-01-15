@@ -8,6 +8,9 @@ from pathlib import Path
 from datetime import datetime
 from src.utils import DataLoader
 from src.interface.consolidation_loader import ConsolidationLoader
+from src.run_consolidation import run_consolidation
+from src.pipeline.sede_analyzer import SedeAnalyzer
+from src.interface.components import sede_comparison
 
 
 # ===== CONFIGURAÇÃO DA PÁGINA =====
@@ -96,7 +99,7 @@ def get_geodataframe(shapefile_path, df_municipios):
 def render_map(gdf_filtered, title="Mapa"):
     """Função auxiliar para renderizar um mapa folium."""
     if gdf_filtered is None or gdf_filtered.empty:
-        st.info("📁 Nenhum dado para visualizar neste filtro.")
+        st.info("Nenhum dado para visualizar neste filtro.")
         return
     
     # Criar cores por UTP com Paleta Pastel
@@ -194,7 +197,7 @@ def render_dashboard(manager):
     
     with col3:
         status_class = "status-executed" if consolidation_loader.is_executed() else "status-pending"
-        status_text = "✅ Consolidado" if consolidation_loader.is_executed() else "⏳ Pendente"
+        status_text = "Consolidado" if consolidation_loader.is_executed() else "Pendente"
         st.markdown(f"<div class='status-badge {status_class}'>{status_text}</div>", unsafe_allow_html=True)
     
     # === SIDEBAR - FILTROS & CONTROLES ===
@@ -208,12 +211,12 @@ def render_dashboard(manager):
         metadata = data_loader.get_metadata()
         
         if df_municipios.empty:
-            st.error("❌ Falha ao carregar dados.")
+            st.error("Falha ao carregar dados.")
             return
         
         # Filtro por UF
         ufs = sorted(df_municipios['uf'].unique().tolist())
-        all_ufs = st.checkbox("🇧🇷 Brasil Completo", value=True)
+        all_ufs = st.checkbox("Brasil Completo", value=True)
         
         if all_ufs:
             selected_ufs = ufs
@@ -232,36 +235,47 @@ def render_dashboard(manager):
             selected_utps = st.multiselect("UTPs", utps_list, default=[])
         
         st.markdown("---")
-        st.caption(f"📊 Dados de: {metadata.get('timestamp', 'N/A')[:10]}")
+        st.caption(f"Dados de: {metadata.get('timestamp', 'N/A')[:10]}")
         
         # === SEÇÃO DE CONSOLIDAÇÃO ===
         st.markdown("---")
-        st.markdown("### ⚙️ Consolidação")
+        st.markdown("### Consolidação")
         
         if consolidation_loader.is_executed():
             summary = consolidation_loader.get_summary()
             
             # Verifica se houve mudanças ou não
             if summary['total_consolidations'] > 0:
-                st.success("✅ Consolidação em cache")
+                st.success("Consolidação em cache")
                 st.metric("Consolidações", summary['total_consolidations'])
                 st.metric("UTPs Reduzidas", f"{summary['unique_sources']} → {summary['unique_targets']}")
             else:
-                st.info("ℹ️ Consolidação executada - nenhuma mudança necessária")
+                st.info("Consolidação executada - nenhuma mudança necessária")
                 st.caption("Todos os municípios já estão corretamente organizados.")
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("🔄 Atualizar", use_container_width=True):
-                    st.info("ℹ️ Para atualizar, execute a consolidação novamente via código.")
+                if st.button("Rodar Agora", use_container_width=True, help="Executa o pipeline completo de consolidação (Fluxos + REGIC)"):
+                    with st.spinner("Executando pipeline..."):
+                        if run_consolidation():
+                            st.success("Sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("Falha na execução.")
             
             with col2:
-                if st.button("🗑️ Limpar", use_container_width=True):
+                if st.button("Limpar Cache", use_container_width=True):
                     consolidation_loader.clear()
                     st.rerun()
         else:
-            st.warning("⏳ Nenhuma consolidação em cache")
-            st.info("Execute a consolidação para preencher o cache.")
+            st.warning("Nenhuma consolidação em cache")
+            if st.button("Executar Consolidação", use_container_width=True):
+                with st.spinner("Executando pipeline..."):
+                    if run_consolidation():
+                        st.success("Sucesso!")
+                        st.rerun()
+                    else:
+                        st.error("Falha na execução.")
     
     # Aplicar filtros
     df_filtered = df_municipios[df_municipios['uf'].isin(selected_ufs)].copy()
@@ -273,9 +287,10 @@ def render_dashboard(manager):
     gdf = get_geodataframe(shapefile_path, df_municipios)
     
     # === TABS ===
-    tab1, tab2 = st.tabs([
+    tab1, tab2, tab3 = st.tabs([
         "Distribuição Inicial",
-        "Pós-Consolidação"
+        "Pós-Consolidação",
+        "Análise de Dependências"
     ])
     
     # ==== TAB 1: DISTRIBUIÇÃO INICIAL ====
@@ -286,11 +301,11 @@ def render_dashboard(manager):
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("📍 Municípios", len(df_filtered), f"{len(df_municipios)} total")
+            st.metric("Municípios", len(df_filtered), f"{len(df_municipios)} total")
         with col2:
-            st.metric("🔷 UTPs", len(df_filtered['utp_id'].unique()), f"{len(utps_list)} total")
+            st.metric("UTPs", len(df_filtered['utp_id'].unique()), f"{len(utps_list)} total")
         with col3:
-            st.metric("🌐 Estados", len(df_filtered['uf'].unique()), f"{len(ufs)} total")
+            st.metric("Estados", len(df_filtered['uf'].unique()), f"{len(ufs)} total")
         
         st.markdown("---")
         st.markdown("#### Mapa Interativo")
@@ -300,7 +315,7 @@ def render_dashboard(manager):
             if selected_utps:
                 gdf_filtered = gdf_filtered[gdf_filtered['utp_id'].isin(selected_utps)]
             
-            st.subheader(f"🗺️ {len(selected_ufs)} Estado(s) | {len(gdf_filtered)} Municípios")
+            st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_filtered)} Municípios")
             render_map(gdf_filtered, title="Distribuição Inicial")
         
         st.markdown("---")
@@ -321,7 +336,17 @@ def render_dashboard(manager):
     # ==== TAB 2: PÓS-CONSOLIDAÇÃO ====
     with tab2:
         st.markdown("### <span class='step-badge step-final'>FINAL</span> Após Consolidação", unsafe_allow_html=True)
-        st.markdown("Mapa da distribuição após consolidação de UTPs unitárias e limpeza territorial.")
+        col_title, col_btn = st.columns([3, 1])
+        with col_title:
+            st.markdown("Mapa da distribuição após consolidação de UTPs unitárias e limpeza territorial.")
+        with col_btn:
+            if st.button("Rodar Pipeline", use_container_width=True, key="btn_tab_run"):
+                with st.spinner("Executando..."):
+                    if run_consolidation():
+                        st.success("Feito!")
+                        st.rerun()
+                    else:
+                        st.error("Erro!")
         st.markdown("---")
         
         if consolidation_loader.is_executed():
@@ -330,9 +355,9 @@ def render_dashboard(manager):
             
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("🔗 Consolidações", stats_summary['total_consolidations'])
+                st.metric("Consolidações", stats_summary['total_consolidations'])
             with col2:
-                st.metric("📊 UTPs Reduzidas", f"{stats_summary['unique_sources']} → {stats_summary['unique_targets']}")
+                st.metric("UTPs Reduzidas", f"{stats_summary['unique_sources']} → {stats_summary['unique_targets']}")
             with col3:
                 reduction = (stats_summary['unique_sources'] - stats_summary['unique_targets']) / stats_summary['unique_sources'] * 100
                 st.metric("% Redução", f"{reduction:.1f}%")
@@ -354,7 +379,7 @@ def render_dashboard(manager):
                         gdf_consolidated['utp_id'].isin(target_utps | set(selected_utps))
                     ]
                 
-                st.subheader(f"🗺️ {len(selected_ufs)} Estado(s) | {len(gdf_consolidated)} Municípios")
+                st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_consolidated)} Municípios")
                 render_map(gdf_consolidated, title="Distribuição Consolidada")
             
             st.markdown("---")
@@ -367,14 +392,14 @@ def render_dashboard(manager):
             # Download do resultado
             result_json = json.dumps(consolidation_loader.result, ensure_ascii=False, indent=2)
             st.download_button(
-                label="📥 Baixar Resultado de Consolidação",
+                label="Baixar Resultado de Consolidação",
                 data=result_json,
                 file_name=f"consolidation_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                 mime="application/json"
             )
         
         else:
-            st.info("ℹ️ Nenhuma consolidação em cache ainda.")
+            st.info("Nenhuma consolidação em cache ainda.")
             st.markdown("""
             ### Como usar:
             
@@ -386,12 +411,167 @@ def render_dashboard(manager):
             O cache permanecerá enquanto você não clicar em 🗑️ "Limpar" na sidebar.
             """)
     
+    # ==== TAB 3: ANÁLISE DE DEPENDÊNCIAS ====
+    with tab3:
+        st.markdown("### <span class='step-badge step-final'>ANÁLISE</span> Dependências entre Sedes", unsafe_allow_html=True)
+        st.markdown("Análise sede-a-sede para identificar hierarquias e dependências entre UTPs usando dados socioeconômicos e fluxos.")
+        st.markdown("---")
+        
+        # Inicializar analisador com cache
+        @st.cache_data(show_spinner="Analisando dependências entre sedes...")
+        def run_sede_analysis():
+            """
+            Executa análise de dependências e retorna resultados.
+            
+            IMPORTANTE: A análise é feita sobre a configuração territorial APÓS consolidação,
+            se houver consolidações em cache. Caso contrário, usa a configuração inicial.
+            """
+            # Passar consolidation_loader para usar dados consolidados
+            analyzer = SedeAnalyzer(consolidation_loader=consolidation_loader)
+            summary = analyzer.analyze_sede_dependencies()
+            
+            if summary.get('success'):
+                df_table = analyzer.export_sede_comparison_table()
+                return summary, df_table, analyzer.df_sede_analysis
+            else:
+                return summary, pd.DataFrame(), pd.DataFrame()
+        
+        # Executar análise
+        try:
+            summary, df_display, df_raw = run_sede_analysis()
+            
+            if summary.get('success'):
+                # === MÉTRICAS GERAIS ===
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("Total de Sedes", summary['total_sedes'])
+                
+                with col2:
+                    alert_count = summary['total_alertas']
+                    st.metric("Alertas", alert_count, 
+                             delta="Dependências" if alert_count > 0 else "Nenhum",
+                             delta_color="inverse")
+                
+                with col3:
+                    st.metric("População Total", f"{summary['populacao_total']:,}")
+                
+                with col4:
+                    st.metric("Com Aeroporto", summary['sedes_com_aeroporto'])
+                
+                st.markdown("---")
+                
+                # === ALERTAS DE DEPENDÊNCIA ===
+                st.markdown("#### Alertas de Dependência Funcional")
+                st.caption("Sedes cujo principal fluxo vai para outra sede a até 2h de distância")
+                
+                sede_comparison.render_dependency_alerts(df_display)
+                
+                st.markdown("---")
+                
+                # === FILTROS E TABELA ===
+                st.markdown("#### Tabela Comparativa de Sedes")
+                
+                # Filtros acima da tabela
+                col_filter1, col_filter2, col_filter3 = st.columns(3)
+                
+                with col_filter1:
+                    show_alerts_only = st.checkbox("Apenas Alertas", value=False)
+                
+                with col_filter2:
+                    # Filtro por REGIC
+                    regic_options = ['Todos'] + sorted(df_raw[df_raw['regic'] != '']['regic'].unique().tolist())
+                    selected_regic = st.selectbox("Filtrar por REGIC", regic_options)
+                
+                with col_filter3:
+                    # Filtro por aeroporto
+                    filter_airport = st.selectbox("Filtrar Aeroporto", ["Todos", "Apenas com aeroporto", "Sem aeroporto"])
+                
+                # Aplicar filtros ao dataframe
+                df_filtered_display = df_display.copy()
+                df_filtered_raw = df_raw.copy()
+                
+                if selected_regic != 'Todos':
+                    mask = df_raw['regic'] == selected_regic
+                    df_filtered_display = df_display[mask]
+                    df_filtered_raw = df_raw[mask]
+                
+                if filter_airport == "Apenas com aeroporto":
+                    mask = df_display['Aeroporto'] == 'Sim'
+                    df_filtered_display = df_filtered_display[mask]
+                    df_filtered_raw = df_filtered_raw[df_raw['tem_aeroporto'] == True]
+                elif filter_airport == "Sem aeroporto":
+                    mask = df_display['Aeroporto'] == ''
+                    df_filtered_display = df_filtered_display[mask]
+                    df_filtered_raw = df_filtered_raw[df_raw['tem_aeroporto'] == False]
+                
+                # Renderizar tabela
+                sede_comparison.render_sede_table(df_filtered_display, show_alerts_only)
+                
+                st.markdown("---")
+                
+                # === VISUALIZAÇÕES ===
+                st.markdown("#### Análises Visuais")
+                
+                # Gráficos socioeconômicos
+                sede_comparison.render_socioeconomic_charts(df_filtered_display)
+                
+                st.markdown("---")
+                
+                # Distribuição REGIC
+                sede_comparison.render_regic_distribution(df_filtered_display)
+                
+                st.markdown("---")
+                
+                # === EXPORTAR DADOS ===
+                st.markdown("#### 💾 Exportar Dados")
+                
+                col_exp1, col_exp2 = st.columns(2)
+                
+                with col_exp1:
+                    # Download CSV da tabela
+                    csv = df_display.to_csv(index=False, encoding='utf-8-sig')
+                    st.download_button(
+                        label="Baixar Tabela (CSV)",
+                        data=csv,
+                        file_name=f"analise_sedes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                
+                with col_exp2:
+                    # Download JSON dos alertas
+                    if summary['total_alertas'] > 0:
+                        alertas_json = df_raw[df_raw['tem_alerta_dependencia']]['alerta_detalhes'].tolist()
+                        json_str = json.dumps(alertas_json, ensure_ascii=False, indent=2)
+                        st.download_button(
+                            label="Baixar Alertas (JSON)",
+                            data=json_str,
+                            file_name=f"alertas_dependencia_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                            mime="application/json"
+                        )
+            
+            else:
+                st.error(f"Erro ao executar análise: {summary.get('error', 'Erro desconhecido')}")
+                st.info("""
+                ### Como usar:
+                
+                1. Certifique-se de que o arquivo `data/initialization.json` está presente
+                2. Verifique se a matriz de impedância está disponível em `data/01_raw/impedance/impedancias_filtradas_2h.csv`
+                3. Recarregue o dashboard (F5)
+                """)
+        
+        except Exception as e:
+            st.error(f"Erro ao carregar análise de sedes: {e}")
+            import traceback
+            with st.expander("Ver detalhes do erro"):
+                st.code(traceback.format_exc())
+    
     # === FOOTER ===
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666; font-size: 0.9rem; margin-top: 2rem;'>
         <p><strong>GeoValida</strong> • Consolidação Territorial de UTPs</p>
         <p>Laboratório de Transportes • UFSC</p>
-        <p style='font-size: 0.8rem; color: #999;'>💾 Cache de consolidação em: <code>data/consolidation_result.json</code></p>
+        <p style='font-size: 0.8rem; color: #999;'>Cache de consolidação em: <code>data/consolidation_result.json</code></p>
     </div>
     """, unsafe_allow_html=True)
