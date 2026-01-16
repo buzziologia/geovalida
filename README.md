@@ -399,8 +399,9 @@ Para melhorias ou correções, crie um issue ou pull request.
 ## 📧 Contato
 
 **LabTrans - UFSC**
-- Email: [seu-email@ufsc.br]
+- Email: [vinicios.labtrans@gmail.com]
 - Website: [labrans.ufsc.br]
+- app: [geovalida.streamlit.app]
 
 ---
 

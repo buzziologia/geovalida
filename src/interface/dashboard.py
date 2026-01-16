@@ -96,6 +96,163 @@ def get_geodataframe(shapefile_path, df_municipios):
         return None
 
 
+def create_enriched_utp_summary(df_municipios):
+    """
+    Cria resumo enriquecido das UTPs com métricas territoriais relevantes.
+    
+    Args:
+        df_municipios: DataFrame com dados dos municípios
+        
+    Returns:
+        DataFrame com métricas agregadas por UTP
+    """
+    if df_municipios.empty:
+        return pd.DataFrame()
+    
+    # Preparar dados
+    df = df_municipios.copy()
+    
+    # Garantir tipos numéricos
+    numeric_cols = ['populacao_2022', 'area_km2']
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    # Agregar viagens por município
+    df['total_viagens'] = 0
+    if 'modais' in df.columns:
+        df['total_viagens'] = df['modais'].apply(
+            lambda x: sum(x.values()) if isinstance(x, dict) else 0
+        )
+    
+    # Identificar modal dominante
+    def get_modal_dominante(modais):
+        if not isinstance(modais, dict) or not modais:
+            return ''
+        max_modal = max(modais.items(), key=lambda x: x[1])
+        if max_modal[1] == 0:
+            return ''
+        # Simplificar nomes
+        modal_map = {
+            'rodoviaria_coletiva': 'Rod. Coletiva',
+            'rodoviaria_particular': 'Rod. Particular',
+            'aeroviaria': 'Aérea',
+            'ferroviaria': 'Ferroviária',
+            'hidroviaria': 'Hidroviária'
+        }
+        return modal_map.get(max_modal[0], max_modal[0])
+    
+    df['modal_dominante'] = df['modais'].apply(get_modal_dominante) if 'modais' in df.columns else ''
+    
+    # Agrupar por UTP
+    summary_list = []
+    
+    for utp_id, group in df.groupby('utp_id'):
+        # Identificar sede
+        sede_row = group[group['sede_utp'] == True]
+        if sede_row.empty:
+            continue
+        
+        sede = sede_row.iloc[0]
+        
+        # População
+        pop_total = group['populacao_2022'].sum()
+        
+        # Maior município
+        maior_mun = group.loc[group['populacao_2022'].idxmax()]
+        maior_mun_nome = f"{maior_mun['nm_mun']} ({maior_mun['populacao_2022']:,.0f})"
+        
+        # Turismo
+        turismo_cat = sede.get('turismo_classificacao', '')
+        if pd.isna(turismo_cat) or str(turismo_cat).strip() == '':
+            turismo_cat = '-'
+        else:
+            # Simplificar categoria (pegar apenas primeira parte antes do hífen)
+            turismo_cat = str(turismo_cat).split('-')[0].strip()
+        
+        # Aeroportos na UTP
+        aeroportos_info = []
+        for _, mun in group.iterrows():
+            if 'aeroporto' in mun and isinstance(mun['aeroporto'], dict):
+                aero = mun['aeroporto']
+                icao = aero.get('sigla', '') or aero.get('icao', '')
+                passageiros = aero.get('passageiros_anual', 0)
+                
+                if icao and str(icao).strip() not in ['', 'nan', 'None']:
+                    aeroportos_info.append({
+                        'icao': str(icao),
+                        'passageiros': int(passageiros) if passageiros else 0,
+                        'municipio': mun['nm_mun']
+                    })
+        
+        # Determinar principal aeroporto e formatar
+        if aeroportos_info:
+            # Ordenar por passageiros
+            aeroportos_info.sort(key=lambda x: x['passageiros'], reverse=True)
+            principal = aeroportos_info[0]
+            
+            # Formatar passageiros
+            if principal['passageiros'] > 1000000:
+                pass_fmt = f"{principal['passageiros']/1000000:.1f}M"
+            elif principal['passageiros'] > 1000:
+                pass_fmt = f"{principal['passageiros']/1000:.0f}k"
+            else:
+                pass_fmt = str(principal['passageiros'])
+            
+            if len(aeroportos_info) == 1:
+                aeroporto_display = f"{principal['icao']} ({pass_fmt})"
+            else:
+                aeroporto_display = f"{len(aeroportos_info)} aeros | {principal['icao']} ({pass_fmt})"
+        else:
+            aeroporto_display = '-'
+        
+        # Viagens
+        viagens_total = group['total_viagens'].sum()
+        
+        # Modal dominante da UTP (baseado na sede)
+        modal_dom = sede.get('modal_dominante', '-')
+        
+        # REGIC
+        regic = sede.get('regic', '-')
+        if pd.isna(regic) or str(regic).strip() == '':
+            regic = '-'
+        
+        # Região Metropolitana
+        rm = sede.get('regiao_metropolitana', '')
+        if pd.isna(rm) or str(rm).strip() == '':
+            rm = '-'
+        
+        summary_list.append({
+            'UTP': utp_id,
+            'Sede': sede['nm_mun'],
+            'UF': sede['uf'],
+            'Municípios': len(group),
+            'População': int(pop_total),
+            'Maior Município': maior_mun_nome,
+            'REGIC': regic,
+            'RM': rm,
+            'Turismo': turismo_cat,
+            'Aeroportos': aeroporto_display,
+            'Viagens': int(viagens_total),
+            'Modal': modal_dom if modal_dom else '-'
+        })
+    
+    # Criar DataFrame
+    summary_df = pd.DataFrame(summary_list)
+    
+    # Ordenar por população (decrescente)
+    summary_df = summary_df.sort_values('População', ascending=False)
+    
+    # Formatar colunas numéricas para display
+    summary_df_display = summary_df.copy()
+    summary_df_display['População'] = summary_df_display['População'].apply(lambda x: f"{x:,}")
+    summary_df_display['Viagens'] = summary_df_display['Viagens'].apply(
+        lambda x: f"{x:,}" if x > 0 else '-'
+    )
+    
+    return summary_df_display
+
+
 def render_map(gdf_filtered, title="Mapa"):
     """Função auxiliar para renderizar um mapa folium."""
     if gdf_filtered is None or gdf_filtered.empty:
@@ -319,19 +476,52 @@ def render_dashboard(manager):
             render_map(gdf_filtered, title="Distribuição Inicial")
         
         st.markdown("---")
-        st.markdown("#### Composição das UTPs")
+        st.markdown("#### Resumo das UTPs")
+        st.caption("Características socioeconômicas e territoriais agregadas por UTP")
         
-        utp_summary = df_filtered.groupby('utp_id').agg({
-            'nm_mun': 'count',
-            'sede_utp': 'sum',
-            'regiao_metropolitana': lambda x: (x.notna() & (x != '')).sum()
-        }).rename(columns={
-            'nm_mun': 'Municípios',
-            'sede_utp': 'Sedes',
-            'regiao_metropolitana': 'Com RM'
-        }).sort_values('Municípios', ascending=False).head(15)
+        # Criar resumo enriquecido
+        utp_summary = create_enriched_utp_summary(df_filtered)
         
-        st.dataframe(utp_summary, use_container_width=True)
+        if not utp_summary.empty:
+            st.markdown(f"**{len(utp_summary)} UTPs (ordenadas por população)**")
+            
+            # Mostrar todas as UTPs
+            st.dataframe(
+                utp_summary,
+                use_container_width=True,
+                hide_index=True,
+                height=600
+            )
+            
+            # Estatísticas rápidas
+            st.markdown("---")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            # Converter população de volta para número para estatísticas
+            pop_values = df_filtered.groupby('utp_id')['populacao_2022'].sum()
+            
+            with col1:
+                st.metric("População Média", f"{pop_values.mean():,.0f}")
+            with col2:
+                st.metric("População Mediana", f"{pop_values.median():,.0f}")
+            with col3:
+                utps_com_aero = (utp_summary['Aeroportos'] != '-').sum()
+                st.metric("UTPs com Aeroporto", utps_com_aero)
+            with col4:
+                # Contar total de aeroportos
+                total_aeros = 0
+                for val in utp_summary['Aeroportos']:
+                    if val != '-':
+                        if 'aeros' in val:
+                            # Extrair número antes de 'aeros'
+                            total_aeros += int(val.split(' ')[0])
+                        else:
+                            total_aeros += 1
+                st.metric("Total de Aeroportos", total_aeros)
+        else:
+            st.info("Nenhuma UTP encontrada com os filtros selecionados.")
+
+
     
     # ==== TAB 2: PÓS-CONSOLIDAÇÃO ====
     with tab2:
@@ -408,7 +598,7 @@ def render_dashboard(manager):
             3. **Recarregue o dashboard** (F5 ou refresh)
             4. Os mapas comparativos aparecerão automaticamente
             
-            O cache permanecerá enquanto você não clicar em 🗑️ "Limpar" na sidebar.
+            O cache permanecerá enquanto você não clicar em "Limpar" na sidebar.
             """)
     
     # ==== TAB 3: ANÁLISE DE DEPENDÊNCIAS ====
@@ -524,7 +714,7 @@ def render_dashboard(manager):
                 st.markdown("---")
                 
                 # === EXPORTAR DADOS ===
-                st.markdown("#### 💾 Exportar Dados")
+                st.markdown("#### Exportar Dados")
                 
                 col_exp1, col_exp2 = st.columns(2)
                 
