@@ -1,7 +1,9 @@
-# Arquivos Ignorados ao dar commit
-*.shp 
-*.dbf 
-*.shx 
-
 # Ambientes Virtuais
 venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
