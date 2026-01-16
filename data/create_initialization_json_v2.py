@@ -171,9 +171,42 @@ def load_population():
         return pd.DataFrame()
 
 
+def load_metropolitan_regions():
+    """Carrega dados de regiões metropolitanas."""
+    logger.info("Carregando dados de regiões metropolitanas...")
+    file_path = RAW_DATA_DIR / "Composicao_RM_2024.xlsx"
+    
+    try:
+        if not file_path.exists():
+            logger.warning(f"  ⚠ Arquivo {file_path.name} não encontrado")
+            return pd.DataFrame()
+        
+        df = pd.read_excel(file_path)
+        
+        # Verificar colunas necessárias
+        required_cols = ['COD_MUN', 'NOME_RECMETROPOL']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            logger.warning(f"  ⚠ Colunas ausentes: {missing_cols}")
+            return pd.DataFrame()
+        
+        # Converter COD_MUN para numérico
+        df['COD_MUN'] = pd.to_numeric(df['COD_MUN'], errors='coerce')
+        df = df.dropna(subset=['COD_MUN'])
+        
+        # Manter apenas a primeira ocorrência de cada município (caso haja duplicatas)
+        df = df.drop_duplicates(subset=['COD_MUN'], keep='first')
+        
+        logger.info(f"  ✓ Carregadas {len(df)} municípios em regiões metropolitanas")
+        return df
+    except Exception as e:
+        logger.error(f"  ✗ Erro ao carregar regiões metropolitanas: {e}")
+        return pd.DataFrame()
+
+
 def consolidate_data(
     df_utp, df_sede, df_turismo, df_categorizacao, 
-    df_airports, impedances, modals, df_population
+    df_airports, impedances, modals, df_population, df_rm
 ):
     """Consolida todos os dados em estrutura JSON."""
     logger.info("\nConsolidando dados...")
@@ -314,8 +347,14 @@ def consolidate_data(
             cd_mun = int(row.get('CD_MUN', 0))
             nm_mun = row.get('NM_MUN', '')
             uf = row.get('SIGLA_UF', '')  # Corrigido: UF não existe, usar SIGLA_UF
-            regiao_metrop = row.get('NM_CONCU', row.get('REGIAO_METROPOLITANA', ''))
             utp_id = str(row.get('UTPs_PAN_3', ''))
+            
+            # Buscar região metropolitana do arquivo Composicao_RM_2024.xlsx
+            regiao_metrop = ''
+            if not df_rm.empty:
+                rm_row = df_rm[df_rm['COD_MUN'] == cd_mun]
+                if not rm_row.empty:
+                    regiao_metrop = str(rm_row.iloc[0]['NOME_RECMETROPOL'])
             
             # Verificar se é sede
             is_sede = cd_mun == sede_lookup.get(utp_id)
@@ -401,6 +440,7 @@ def save_json(municipios, utps):
             'UTP_TURISMO.xlsx',
             'Base_Categorização.csv',
             'Aeros_comercial.csv',
+            'Composicao_RM_2024.xlsx',  # Adicionado fonte de RMs
             'impedance/impedancias_06h_18_08_22.csv',
             'impedance/impedancias_filtradas_2h.csv',
             'person-matrix-data/*.csv',
@@ -436,11 +476,12 @@ def main():
     impedances = load_impedances()
     modals = load_modal_matrices()
     df_population = load_population()
+    df_rm = load_metropolitan_regions()  # Nova função para carregar RMs
     
     # Consolidar
     municipios, utps = consolidate_data(
         df_utp, df_sede, df_turismo, df_categorizacao,
-        df_airports, impedances, modals, df_population
+        df_airports, impedances, modals, df_population, df_rm
     )
     
     # Salvar

@@ -57,10 +57,7 @@ class UTPConsolidator:
     def _consolidate_with_rm(self, flow_df: pd.DataFrame, gdf: gpd.GeoDataFrame, map_gen: Any) -> int:
         """Consolida UTPs unitárias que pertencem a alguma RM.
         
-        Calcula dinamicamente:
-        - UTP de destino a partir do município de destino com maior fluxo
-        - Validação de RM (origem e destino devem estar na mesma RM)
-        - Flag de mesma UTP (ignora se já está na UTP correta)
+        Implementa desempate por maior fluxo total quando há múltiplas UTPs candidatas.
         """
         changes = 0
         
@@ -79,59 +76,78 @@ class UTPConsolidator:
             if self.validator.is_non_rm_utp(utp_origem):
                 continue
             
-            # Busca fluxos deste município (mun_origem pode ser int ou str)
+            # Busca fluxos deste município
             fluxos_mun = flow_df[flow_df['mun_origem'].astype(int) == int(mun_id)]
             if fluxos_mun.empty:
                 self.logger.debug(f"Mun {mun_id} (UTP {utp_origem}): Sem dados de fluxo.")
                 continue
             
-            # Ordena por viagens e pega o destino principal
-            top_destino = fluxos_mun.nlargest(1, 'viagens').iloc[0]
-            mun_destino = int(top_destino['mun_destino'])
-            viagens = float(top_destino['viagens'])
-            
-            # CÁLCULO DINÂMICO: Identifica UTP do município de destino
-            utp_destino = self.graph.get_municipality_utp(mun_destino)
-            
-            if utp_destino == "NAO_ENCONTRADO" or utp_destino == "SEM_UTP":
-                self.logger.debug(f"Mun {mun_id}: Destino {mun_destino} não está no grafo.")
-                continue
-            
-            # FILTRO 1: Não consolidar para si mesmo (MESMA_UTP)
-            if utp_origem == utp_destino:
-                self.logger.debug(f"Mun {mun_id}: Já está na UTP correta ({utp_origem}).")
-                continue
-            
-            # FILTRO 2: Validação de RM (não cruzar RM diferente)
+            # Pega RM de origem para validação
             rm_origem = self.validator.get_rm_of_utp(utp_origem)
-            rm_destino = self.validator.get_rm_of_utp(utp_destino)
             
-            if rm_origem != rm_destino:
-                self.logger.debug(f"Bloqueio RM: Mun {mun_id} tentou ir de {rm_origem} para {rm_destino}.")
+            # Buscar vizinhos geográficos (UTPs adjacentes)
+            vizinhos = self.validator.get_neighboring_utps(mun_id, gdf)
+            
+            # Filtra candidatos: Com RM, mesma RM, e diferente da origem
+            candidates = []
+            for v_id in vizinhos:
+                if v_id == utp_origem:
+                    continue
+                if self.validator.is_non_rm_utp(v_id):
+                    continue
+                
+                rm_destino = self.validator.get_rm_of_utp(v_id)
+                if rm_origem != rm_destino:
+                    continue
+                
+                candidates.append(v_id)
+            
+            if not candidates:
+                self.logger.debug(f"Mun {mun_id} (UTP {utp_origem}): Sem candidatos válidos.")
                 continue
             
-            # FILTRO 3: Validação geográfica (deve tocar algum município da UTP alvo)
-            if self.validator.is_adjacent_to_any_in_utp(mun_id, utp_destino, gdf):
+            # DESEMPATE: Avaliar fluxo total para cada UTP candidata
+            best_target, max_flow, best_mun_destino = None, -1, None
+            
+            for v_id in candidates:
+                # Somar fluxo para TODOS os municípios da UTP alvo
+                muns_target = list(self.graph.hierarchy.successors(f"UTP_{v_id}"))
+                
+                fluxos_para_utp = fluxos_mun[
+                    fluxos_mun['mun_destino'].astype(int).isin([int(m) for m in muns_target])
+                ]
+                
+                flow = fluxos_para_utp['viagens'].sum()
+                
+                if flow > max_flow:
+                    max_flow = flow
+                    best_target = v_id
+                    # Pega o município principal (maior fluxo individual) para logging
+                    if not fluxos_para_utp.empty:
+                        best_mun_destino = int(fluxos_para_utp.nlargest(1, 'viagens').iloc[0]['mun_destino'])
+            
+            # Consolidar para o melhor alvo
+            if best_target and max_flow > 0:
                 nm_mun = self.graph.hierarchy.nodes.get(mun_id, {}).get('name', str(mun_id))
-                self.logger.info(f"✅ MOVENDO (Com RM): {nm_mun} ({mun_id}) -> UTP {utp_destino} (Fluxo: {viagens:.0f})")
-                self.graph.move_municipality(mun_id, utp_destino)
+                self.logger.info(f"✅ MOVENDO (Com RM): {nm_mun} ({mun_id}) -> UTP {best_target} (Fluxo Total: {max_flow:.0f})")
+                self.graph.move_municipality(mun_id, best_target)
                 
                 # Registrar consolidação com detalhes completos
                 self.consolidation_manager.add_consolidation(
                     source_utp=utp_origem,
-                    target_utp=utp_destino,
+                    target_utp=best_target,
                     reason="Com RM - Fluxo Principal",
                     details={
                         "mun_id": mun_id, 
                         "nm_mun": nm_mun,
-                        "mun_destino": mun_destino,
-                        "viagens": viagens,
+                        "mun_destino": best_mun_destino,
+                        "viagens": max_flow,
                         "rm": rm_origem
                     }
                 )
                 changes += 1
             else:
-                self.logger.warning(f"Bloqueio Geo: Mun {mun_id} não toca UTP {utp_destino}.")
+                self.logger.debug(f"Mun {mun_id}: Fluxo zero para todos os candidatos.")
         
         return changes
 

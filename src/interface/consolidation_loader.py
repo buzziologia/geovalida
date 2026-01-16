@@ -92,6 +92,33 @@ class ConsolidationLoader:
         
         self.save_result()
     
+    def _resolve_mapping_chain(self, utp_id: str, mapping: dict, max_depth: int = 10) -> str:
+        """
+        Resolve consolidação em cadeia seguindo o mapeamento transitivo.
+        
+        Exemplo: Se UTP 131 -> 152 e UTP 152 -> 672, então 131 -> 672
+        
+        Args:
+            utp_id: ID da UTP inicial
+            mapping: Dicionário de mapeamento {source_utp: target_utp}
+            max_depth: Profundidade máxima para evitar loops infinitos
+            
+        Returns:
+            ID final da UTP após seguir toda a cadeia
+        """
+        visited = set()
+        current = utp_id
+        depth = 0
+        
+        while current in mapping and depth < max_depth:
+            if current in visited:  # Detecta ciclo
+                break
+            visited.add(current)
+            current = mapping[current]
+            depth += 1
+        
+        return current
+    
     def apply_consolidations_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Aplica as consolidações a um dataframe, cuidando da lógica de sedes.
@@ -116,9 +143,10 @@ class ConsolidationLoader:
             # Se uma UTP unitária é englobada, seu único município deixa de ser sede
             df_consolidated.loc[changing_mask, 'sede_utp'] = False
             
-            # 3. Aplicar o mapeamento de UTP IDs
-            df_consolidated['utp_id'] = df_consolidated['utp_id'].map(
-                lambda x: mapping.get(x, x)
+            # 3. Aplicar o mapeamento de UTP IDs RESOLVENDO CADEIAS
+            # Importante: seguir toda a cadeia de consolidações (ex: 131->152->672)
+            df_consolidated['utp_id'] = df_consolidated['utp_id'].apply(
+                lambda x: self._resolve_mapping_chain(x, mapping)
             )
             
             # 4. Atualizar o nome da sede (nm_sede) se a coluna existir

@@ -4,6 +4,7 @@ import pandas as pd
 import geopandas as gpd
 import folium
 import json
+import logging
 from pathlib import Path
 from datetime import datetime
 from src.utils import DataLoader
@@ -11,6 +12,7 @@ from src.interface.consolidation_loader import ConsolidationLoader
 from src.run_consolidation import run_consolidation
 from src.pipeline.sede_analyzer import SedeAnalyzer
 from src.interface.components import sede_comparison
+from src.core.graph import TerritorialGraph
 
 
 # ===== CONFIGURAÇÃO DA PÁGINA =====
@@ -50,6 +52,13 @@ st.markdown("""
     .status-pending { background-color: #fff3cd; color: #856404; }
 </style>
 """, unsafe_allow_html=True)
+
+# Paleta Pastel (Cores suaves e agradáveis)
+PASTEL_PALETTE = [
+    '#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', 
+    '#b3de69', '#fccde5', '#d9d9d9', '#bc80bd', '#ccebc5', '#ffed6f',
+    '#a6cee3', '#b2df8a', '#fb9a99', '#fdbf6f', '#cab2d6', '#ffff99'
+]
 
 
 @st.cache_data(show_spinner=True, hash_funcs={gpd.GeoDataFrame: id})
@@ -253,26 +262,138 @@ def create_enriched_utp_summary(df_municipios):
     return summary_df_display
 
 
-def render_map(gdf_filtered, title="Mapa"):
-    """Função auxiliar para renderizar um mapa folium."""
+def analyze_unitary_utps(df_municipios):
+    """
+    Identifica UTPs que possuem apenas 1 município.
+    
+    Returns:
+        DataFrame com lista de UTPs unitárias e seus detalhes
+    """
+    utp_counts = df_municipios.groupby('utp_id').size().reset_index(name='num_municipios')
+    unitary_utps = utp_counts[utp_counts['num_municipios'] == 1]['utp_id'].tolist()
+    
+    if not unitary_utps:
+        return pd.DataFrame()
+    
+    # Buscar detalhes dos municípios únicos
+    df_unitary = df_municipios[df_municipios['utp_id'].isin(unitary_utps)].copy()
+    
+    result = df_unitary[['utp_id', 'nm_mun', 'uf', 'populacao_2022', 'regiao_metropolitana']].copy()
+    result.columns = ['UTP', 'Município', 'UF', 'População', 'RM']
+    result['População'] = result['População'].apply(lambda x: f"{int(x):,}" if pd.notna(x) else '-')
+    result['RM'] = result['RM'].fillna('-')
+    
+    return result.sort_values('UTP')
+
+
+def analyze_non_contiguous_utps(gdf):
+    """
+    Identifica UTPs cujos municípios não são geograficamente contíguos.
+    
+    Usa análise espacial para verificar se todos os municípios de uma UTP
+    formam uma região conectada.
+    
+    Returns:
+        Dict com UTP_ID -> lista de componentes desconectados
+    """
+    if gdf is None or gdf.empty:
+        return {}
+    
+    from shapely.ops import unary_union
+    
+    non_contiguous = {}
+    
+    # Agrupar por UTP
+    for utp_id, group in gdf.groupby('utp_id'):
+        if len(group) <= 1:
+            continue  # UTP unitária, não há como ser não-contígua
+        
+        # Criar união das geometrias
+        try:
+            # Dissolve para criar geometria única da UTP
+            utp_geom = group.geometry.unary_union
+            
+            # Verificar se é MultiPolygon (indica descontinuidade)
+            if utp_geom.geom_type == 'MultiPolygon':
+                # Contar componentes desconectados
+                num_components = len(utp_geom.geoms)
+                
+                # Identificar quais municípios estão em cada componente
+                components_info = []
+                for i, component in enumerate(utp_geom.geoms):
+                    # Encontrar municípios que intersectam este componente
+                    municipalities_in_component = []
+                    for idx, row in group.iterrows():
+                        if row.geometry.intersects(component):
+                            municipalities_in_component.append(row['NM_MUN'])
+                    
+                    if municipalities_in_component:
+                        components_info.append(municipalities_in_component)
+                
+                if num_components > 1:
+                    non_contiguous[utp_id] = {
+                        'num_components': num_components,
+                        'components': components_info,
+                        'num_municipalities': len(group)
+                    }
+        except Exception as e:
+            logging.warning(f"Erro ao analisar contiguidade da UTP {utp_id}: {e}")
+            continue
+    
+    return non_contiguous
+
+
+def render_map(gdf_filtered, title="Mapa", graph=None):
+    """Função auxiliar para renderizar um mapa folium com coloração por grafo."""
     if gdf_filtered is None or gdf_filtered.empty:
         st.info("Nenhum dado para visualizar neste filtro.")
         return
     
-    # Criar cores por UTP com Paleta Pastel
-    utps_unique = gdf_filtered['utp_id'].dropna().unique()
-    colors = {}
-    PASTEL_PALETTE = [
-        '#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', 
-        '#b3de69', '#fccde5', '#d9d9d9', '#bc80bd', '#ccebc5', '#ffed6f',
-        '#a6cee3', '#b2df8a', '#fb9a99', '#fdbf6f', '#cab2d6', '#ffff99'
-    ]
-    
-    for i, utp in enumerate(sorted(utps_unique)):
-        colors[utp] = PASTEL_PALETTE[i % len(PASTEL_PALETTE)]
-    
     gdf_filtered = gdf_filtered.copy()
-    gdf_filtered['color'] = gdf_filtered['utp_id'].map(colors)
+    
+    # Se o grafo foi fornecido, usar coloração mínima baseada em adjacência
+    if graph is not None:
+        try:
+            # Preparar GeoDataFrame para coloração (precisa de UTP_ID e CD_MUN como int)
+            gdf_for_coloring = gdf_filtered.copy()
+            
+            # Garantir que CD_MUN existe e é inteiro
+            if 'CD_MUN' not in gdf_for_coloring.columns:
+                logging.warning("Coluna CD_MUN não encontrada, usando coloração simples")
+                raise ValueError("Missing CD_MUN")
+            
+            gdf_for_coloring['CD_MUN'] = gdf_for_coloring['CD_MUN'].astype(str)
+            gdf_for_coloring['UTP_ID'] = gdf_for_coloring['utp_id'].astype(str)
+            
+            # Calcular coloração usando algoritmo de grafo
+            coloring = graph.compute_graph_coloring(gdf_for_coloring)
+            
+            # Mapear cores: cd_mun (int) -> color_idx -> cor hex
+            color_map = {}
+            for _, row in gdf_filtered.iterrows():
+                try:
+                    cd_mun = int(row['CD_MUN'])
+                    color_idx = coloring.get(cd_mun, 0) % len(PASTEL_PALETTE)
+                    color_map[row['utp_id']] = PASTEL_PALETTE[color_idx]
+                except (ValueError, KeyError):
+                    color_map[row['utp_id']] = PASTEL_PALETTE[0]
+            
+            gdf_filtered['color'] = gdf_filtered['utp_id'].map(color_map)
+            logging.info(f"Coloração por grafo aplicada: {len(set(coloring.values()))} cores distintas")
+        
+        except Exception as e:
+            logging.warning(f"Erro ao aplicar coloração por grafo, usando fallback: {e}")
+            # Fallback: usar coloração simples por UTP
+            utps_unique = gdf_filtered['utp_id'].dropna().unique()
+            colors = {utp: PASTEL_PALETTE[i % len(PASTEL_PALETTE)] 
+                     for i, utp in enumerate(sorted(utps_unique))}
+            gdf_filtered['color'] = gdf_filtered['utp_id'].map(colors)
+    else:
+        # Sem grafo: usar coloração simples
+        utps_unique = gdf_filtered['utp_id'].dropna().unique()
+        colors = {utp: PASTEL_PALETTE[i % len(PASTEL_PALETTE)] 
+                 for i, utp in enumerate(sorted(utps_unique))}
+        gdf_filtered['color'] = gdf_filtered['utp_id'].map(colors)
     
     # Criar mapa folium
     m = folium.Map(
@@ -443,6 +564,38 @@ def render_dashboard(manager):
     shapefile_path = Path(__file__).parent.parent.parent / "data" / "01_raw" / "shapefiles" / "BR_Municipios_2024.shp"
     gdf = get_geodataframe(shapefile_path, df_municipios)
     
+    # Criar instância do grafo territorial para coloração
+    try:
+        graph = TerritorialGraph()
+        # Carregar estrutura do grafo a partir dos dados
+        for _, row in df_municipios.iterrows():
+            cd_mun = int(row['cd_mun'])
+            nm_mun = row.get('nm_mun', str(cd_mun))
+            utp_id = str(row.get('utp_id', 'SEM_UTP'))
+            rm_name = row.get('regiao_metropolitana', '')
+            
+            if not rm_name or rm_name.strip() == '':
+                rm_name = "SEM_RM"
+            
+            # Criar hierarquia no grafo
+            rm_node = f"RM_{rm_name}"
+            if not graph.hierarchy.has_node(rm_node):
+                graph.hierarchy.add_node(rm_node, type='rm', name=rm_name)
+                graph.hierarchy.add_edge(graph.root, rm_node)
+            
+            utp_node = f"UTP_{utp_id}"
+            if not graph.hierarchy.has_node(utp_node):
+                graph.hierarchy.add_node(utp_node, type='utp', utp_id=utp_id)
+                graph.hierarchy.add_edge(rm_node, utp_node)
+            
+            graph.hierarchy.add_node(cd_mun, type='municipality', name=nm_mun)
+            graph.hierarchy.add_edge(utp_node, cd_mun)
+        
+        logging.info(f"Grafo territorial criado: {len(graph.hierarchy.nodes)} nós")
+    except Exception as e:
+        logging.error(f"Erro ao criar grafo territorial: {e}")
+        graph = None
+    
     # === TABS ===
     tab1, tab2, tab3 = st.tabs([
         "Distribuição Inicial",
@@ -473,7 +626,7 @@ def render_dashboard(manager):
                 gdf_filtered = gdf_filtered[gdf_filtered['utp_id'].isin(selected_utps)]
             
             st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_filtered)} Municípios")
-            render_map(gdf_filtered, title="Distribuição Inicial")
+            render_map(gdf_filtered, title="Distribuição Inicial", graph=graph)
         
         st.markdown("---")
         st.markdown("#### Resumo das UTPs")
@@ -570,7 +723,7 @@ def render_dashboard(manager):
                     ]
                 
                 st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_consolidated)} Municípios")
-                render_map(gdf_consolidated, title="Distribuição Consolidada")
+                render_map(gdf_consolidated, title="Distribuição Consolidada", graph=graph)
             
             st.markdown("---")
             st.markdown("#### Registro de Consolidações")
@@ -587,6 +740,94 @@ def render_dashboard(manager):
                 file_name=f"consolidation_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                 mime="application/json"
             )
+            
+            # === ANÁLISE DE QUALIDADE DAS UTPs ===
+            st.markdown("---")
+            st.markdown("#### Análise de Qualidade das UTPs")
+            st.caption("Identificação de problemas que podem requerer atenção adicional")
+            
+            # Análise de UTPs unitárias
+            df_unitary = analyze_unitary_utps(df_consolidated)
+            
+            # Análise de UTPs não-contíguas
+            non_contiguous = analyze_non_contiguous_utps(gdf_consolidated) if gdf is not None else {}
+            
+            # Métricas de qualidade
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                total_utps = df_consolidated['utp_id'].nunique()
+                st.metric("Total de UTPs", total_utps)
+            with col2:
+                unitary_count = len(df_unitary)
+                st.metric("UTPs Unitárias", unitary_count, 
+                         delta="Requer atenção" if unitary_count > 0 else "OK",
+                         delta_color="inverse")
+            with col3:
+                non_contiguous_count = len(non_contiguous)
+                st.metric("UTPs Não-Contíguas", non_contiguous_count,
+                         delta="Requer atenção" if non_contiguous_count > 0 else "OK",
+                         delta_color="inverse")
+            
+            # Detalhamento das UTPs Unitárias
+            if not df_unitary.empty:
+                st.markdown("---")
+                st.markdown("##### UTPs Unitárias")
+                st.caption(f"⚠️ {len(df_unitary)} UTP(s) com apenas 1 município")
+                
+                st.dataframe(
+                    df_unitary,
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                st.info("""
+                **UTPs Unitárias** podem indicar:
+                - Municípios que não puderam ser consolidados devido a restrições
+                - Municípios com características muito distintas dos vizinhos
+                - Possíveis candidatos para nova rodada de consolidação
+                """)
+            else:
+                st.success("✅ Nenhuma UTP unitária encontrada")
+            
+            # Detalhamento das UTPs Não-Contíguas
+            if non_contiguous:
+                st.markdown("---")
+                st.markdown("##### UTPs com Municípios Não-Contíguos")
+                st.caption(f"⚠️ {len(non_contiguous)} UTP(s) com municípios geograficamente desconectados")
+                
+                # Criar tabela formatada
+                non_contiguous_data = []
+                for utp_id, info in non_contiguous.items():
+                    # Formatar componentes
+                    components_str = []
+                    for i, comp in enumerate(info['components'], 1):
+                        comp_munic = ", ".join(comp[:3])  # Primeiros 3 municípios
+                        if len(comp) > 3:
+                            comp_munic += f" (+{len(comp)-3})"
+                        components_str.append(f"Grupo {i}: {comp_munic}")
+                    
+                    non_contiguous_data.append({
+                        'UTP': utp_id,
+                        'Total Municípios': info['num_municipalities'],
+                        'Componentes Desconectados': info['num_components'],
+                        'Detalhes': " | ".join(components_str)
+                    })
+                
+                df_non_contiguous = pd.DataFrame(non_contiguous_data)
+                st.dataframe(
+                    df_non_contiguous,
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                st.warning("""
+                **UTPs Não-Contíguas** indicam que alguns municípios da UTP estão geograficamente separados:
+                - Isso pode ser resultado de consolidações baseadas em fluxos funcionais
+                - Municípios podem ter forte relação funcional mas não compartilham fronteiras
+                - Considere revisar se a consolidação faz sentido do ponto de vista territorial
+                """)
+            else:
+                st.success("✅ Todas as UTPs são geograficamente contíguas")
         
         else:
             st.info("Nenhuma consolidação em cache ainda.")

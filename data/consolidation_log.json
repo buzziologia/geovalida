@@ -1,10 +1,108 @@
 {
   "version": "1.0",
-  "timestamp_created": "2026-01-15T14:51:47.092305",
+  "timestamp_created": "2026-01-16T11:12:22.865811",
   "consolidations": [
     {
       "id": 1,
-      "timestamp": "2026-01-15T14:51:47.321187",
+      "timestamp": "2026-01-16T11:12:22.948214",
+      "source_utp": "399",
+      "target_utp": "206",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 1300300,
+        "nm_mun": "Autazes",
+        "mun_destino": 1302603,
+        "viagens": 87726.21397974066,
+        "rm": "RM_Recorte Metropolitano de Manaus"
+      }
+    },
+    {
+      "id": 2,
+      "timestamp": "2026-01-16T11:12:23.093104",
+      "source_utp": "659",
+      "target_utp": "206",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 1303536,
+        "nm_mun": "Presidente Figueiredo",
+        "mun_destino": 1302603,
+        "viagens": 450240.0,
+        "rm": "RM_Recorte Metropolitano de Manaus"
+      }
+    },
+    {
+      "id": 3,
+      "timestamp": "2026-01-16T11:12:23.263340",
+      "source_utp": "376",
+      "target_utp": "47",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 1400050,
+        "nm_mun": "Alto Alegre",
+        "mun_destino": 1400100,
+        "viagens": 1484276.0,
+        "rm": "RM_Recorte Metropolitano de Boa Vista"
+      }
+    },
+    {
+      "id": 4,
+      "timestamp": "2026-01-16T11:12:23.330207",
+      "source_utp": "135",
+      "target_utp": "47",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 1400159,
+        "nm_mun": "Bonfim",
+        "mun_destino": 1400100,
+        "viagens": 281449.0,
+        "rm": "RM_Recorte Metropolitano de Boa Vista"
+      }
+    },
+    {
+      "id": 5,
+      "timestamp": "2026-01-16T11:12:23.378306",
+      "source_utp": "457",
+      "target_utp": "253",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 2907202,
+        "nm_mun": "Casa Nova",
+        "mun_destino": 2918407,
+        "viagens": 427534.259833292,
+        "rm": "RM_Recorte Metropolitano do Polo Petrolina/PE e Juazeiro/BA"
+      }
+    },
+    {
+      "id": 6,
+      "timestamp": "2026-01-16T11:12:23.411663",
+      "source_utp": "494",
+      "target_utp": "253",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 2909901,
+        "nm_mun": "Curaçá",
+        "mun_destino": 2918407,
+        "viagens": 968399.0,
+        "rm": "RM_Recorte Metropolitano do Polo Petrolina/PE e Juazeiro/BA"
+      }
+    },
+    {
+      "id": 7,
+      "timestamp": "2026-01-16T11:12:23.528497",
+      "source_utp": "120",
+      "target_utp": "363",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 3202405,
+        "nm_mun": "Guarapari",
+        "mun_destino": 3205200,
+        "viagens": 6092800.7191301845,
+        "rm": "RM_Recorte Metropolitano da Grande Vitória"
+      }
+    },
+    {
+      "id": 8,
+      "timestamp": "2026-01-16T11:12:23.673274",
       "source_utp": "766",
       "target_utp": "75",
       "reason": "Com RM - Fluxo Principal",
@@ -13,24 +111,106 @@
         "nm_mun": "Ilhabela",
         "mun_destino": 3550704,
         "viagens": 1231707.0,
-        "rm": "RM_Caraguatatuba - Ubatuba - São Sebastião/SP"
+        "rm": "RM_Recorte Metropolitano do Vale do Paraíba e Litoral Norte"
       }
     },
     {
-      "id": 2,
-      "timestamp": "2026-01-15T14:52:04.705344",
+      "id": 9,
+      "timestamp": "2026-01-16T11:12:23.681765",
       "source_utp": "142",
       "target_utp": "624",
-      "reason": "Sem RM - Fluxo Total BFS",
+      "reason": "Com RM - Fluxo Principal",
       "details": {
         "mun_id": 4108809,
         "nm_mun": "Guaíra",
-        "flow": 2060374.8792895456
+        "mun_destino": 4127403,
+        "viagens": 1642826.0,
+        "rm": "RM_Recorte Metropolitano de Toledo"
       }
     },
     {
-      "id": 3,
-      "timestamp": "2026-01-15T14:52:04.707013",
+      "id": 10,
+      "timestamp": "2026-01-16T11:12:23.850897",
+      "source_utp": "646",
+      "target_utp": "98",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 5106505,
+        "nm_mun": "Poconé",
+        "mun_destino": 5103403,
+        "viagens": 185106.0,
+        "rm": "RM_Recorte Metropolitano do Vale do Rio Cuiabá"
+      }
+    },
+    {
+      "id": 11,
+      "timestamp": "2026-01-16T11:12:24.059611",
+      "source_utp": "461",
+      "target_utp": "378",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 5205307,
+        "nm_mun": "Cavalcante",
+        "mun_destino": 5200605,
+        "viagens": 113694.0,
+        "rm": "RM_Recorte Metropolitano do Distrito Federal e Entorno"
+      }
+    },
+    {
+      "id": 12,
+      "timestamp": "2026-01-16T11:12:24.571552",
+      "source_utp": "488",
+      "target_utp": "53",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 5206206,
+        "nm_mun": "Cristalina",
+        "mun_destino": 5300108,
+        "viagens": 653877.63985879,
+        "rm": "RM_Recorte Metropolitano do Distrito Federal e Entorno"
+      }
+    },
+    {
+      "id": 13,
+      "timestamp": "2026-01-16T11:12:24.684732",
+      "source_utp": "606",
+      "target_utp": "116",
+      "reason": "Com RM - Fluxo Principal",
+      "details": {
+        "mun_id": 5214606,
+        "nm_mun": "Niquelândia",
+        "mun_destino": 5203203,
+        "viagens": 125601.0,
+        "rm": "RM_Recorte Metropolitano do Distrito Federal e Entorno"
+      }
+    },
+    {
+      "id": 14,
+      "timestamp": "2026-01-16T11:12:43.443887",
+      "source_utp": "445",
+      "target_utp": "237",
+      "reason": "Sem RM - Fluxo Total BFS",
+      "details": {
+        "mun_id": 1502152,
+        "nm_mun": "Canaã dos Carajás",
+        "flow": 2636531.0640200824
+      }
+    },
+    {
+      "id": 15,
+      "timestamp": "2026-01-16T11:12:43.445250",
+      "source_utp": "224",
+      "target_utp": "95",
+      "reason": "Sem RM - Fluxo Total BFS",
+      "details": {
+        "mun_id": 3303401,
+        "nm_mun": "Nova Friburgo",
+        "flow": 1749419.0
+      }
+    },
+    {
+      "id": 16,
+      "timestamp": "2026-01-16T11:12:43.446594",
       "source_utp": "696",
       "target_utp": "619",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -41,32 +221,8 @@
       }
     },
     {
-      "id": 4,
-      "timestamp": "2026-01-15T14:52:04.708171",
-      "source_utp": "376",
-      "target_utp": "47",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 1400050,
-        "nm_mun": "Alto Alegre",
-        "flow": 1534996.0
-      }
-    },
-    {
-      "id": 5,
-      "timestamp": "2026-01-15T14:52:04.709278",
-      "source_utp": "488",
-      "target_utp": "53",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 5206206,
-        "nm_mun": "Cristalina",
-        "flow": 1239766.238293187
-      }
-    },
-    {
-      "id": 6,
-      "timestamp": "2026-01-15T14:52:04.710579",
+      "id": 17,
+      "timestamp": "2026-01-16T11:12:43.447950",
       "source_utp": "447",
       "target_utp": "126",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -77,8 +233,20 @@
       }
     },
     {
-      "id": 7,
-      "timestamp": "2026-01-15T14:52:04.711590",
+      "id": 18,
+      "timestamp": "2026-01-16T11:12:43.449049",
+      "source_utp": "770",
+      "target_utp": "767",
+      "reason": "Sem RM - Fluxo Total BFS",
+      "details": {
+        "mun_id": 3303807,
+        "nm_mun": "Paraty",
+        "flow": 1107082.0
+      }
+    },
+    {
+      "id": 19,
+      "timestamp": "2026-01-16T11:12:43.450204",
       "source_utp": "574",
       "target_utp": "38",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -89,32 +257,8 @@
       }
     },
     {
-      "id": 8,
-      "timestamp": "2026-01-15T14:52:04.712563",
-      "source_utp": "494",
-      "target_utp": "253",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 2909901,
-        "nm_mun": "Curaçá",
-        "flow": 1032196.0
-      }
-    },
-    {
-      "id": 9,
-      "timestamp": "2026-01-15T14:52:04.713516",
-      "source_utp": "457",
-      "target_utp": "253",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 2907202,
-        "nm_mun": "Casa Nova",
-        "flow": 868249.259833292
-      }
-    },
-    {
-      "id": 10,
-      "timestamp": "2026-01-15T14:52:04.715091",
+      "id": 20,
+      "timestamp": "2026-01-16T11:12:43.451348",
       "source_utp": "658",
       "target_utp": "275",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -125,8 +269,8 @@
       }
     },
     {
-      "id": 11,
-      "timestamp": "2026-01-15T14:52:04.716401",
+      "id": 21,
+      "timestamp": "2026-01-16T11:12:43.452689",
       "source_utp": "149",
       "target_utp": "687",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -137,20 +281,8 @@
       }
     },
     {
-      "id": 12,
-      "timestamp": "2026-01-15T14:52:04.717695",
-      "source_utp": "568",
-      "target_utp": "390",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 1711902,
-        "nm_mun": "Lagoa da Confusão",
-        "flow": 566892.0
-      }
-    },
-    {
-      "id": 13,
-      "timestamp": "2026-01-15T14:52:04.718810",
+      "id": 22,
+      "timestamp": "2026-01-16T11:12:43.453848",
       "source_utp": "146",
       "target_utp": "732",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -161,8 +293,8 @@
       }
     },
     {
-      "id": 14,
-      "timestamp": "2026-01-15T14:52:04.719928",
+      "id": 23,
+      "timestamp": "2026-01-16T11:12:43.454970",
       "source_utp": "559",
       "target_utp": "651",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -173,8 +305,8 @@
       }
     },
     {
-      "id": 15,
-      "timestamp": "2026-01-15T14:52:04.720914",
+      "id": 24,
+      "timestamp": "2026-01-16T11:12:43.456041",
       "source_utp": "575",
       "target_utp": "415",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -185,8 +317,8 @@
       }
     },
     {
-      "id": 16,
-      "timestamp": "2026-01-15T14:52:04.721920",
+      "id": 25,
+      "timestamp": "2026-01-16T11:12:43.457328",
       "source_utp": "569",
       "target_utp": "623",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -197,8 +329,8 @@
       }
     },
     {
-      "id": 17,
-      "timestamp": "2026-01-15T14:52:04.722980",
+      "id": 26,
+      "timestamp": "2026-01-16T11:12:43.458499",
       "source_utp": "154",
       "target_utp": "711",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -209,32 +341,20 @@
       }
     },
     {
-      "id": 18,
-      "timestamp": "2026-01-15T14:52:04.724018",
-      "source_utp": "646",
-      "target_utp": "98",
+      "id": 27,
+      "timestamp": "2026-01-16T11:12:43.459861",
+      "source_utp": "131",
+      "target_utp": "152",
       "reason": "Sem RM - Fluxo Total BFS",
       "details": {
-        "mun_id": 5106505,
-        "nm_mun": "Poconé",
-        "flow": 431496.7547372755
+        "mun_id": 4315305,
+        "nm_mun": "Quaraí",
+        "flow": 388483.0
       }
     },
     {
-      "id": 19,
-      "timestamp": "2026-01-15T14:52:04.725836",
-      "source_utp": "135",
-      "target_utp": "47",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 1400159,
-        "nm_mun": "Bonfim",
-        "flow": 420071.0
-      }
-    },
-    {
-      "id": 20,
-      "timestamp": "2026-01-15T14:52:04.727211",
+      "id": 28,
+      "timestamp": "2026-01-16T11:12:43.461083",
       "source_utp": "151",
       "target_utp": "687",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -245,8 +365,8 @@
       }
     },
     {
-      "id": 21,
-      "timestamp": "2026-01-15T14:52:04.728368",
+      "id": 29,
+      "timestamp": "2026-01-16T11:12:43.462540",
       "source_utp": "404",
       "target_utp": "764",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -257,8 +377,8 @@
       }
     },
     {
-      "id": 22,
-      "timestamp": "2026-01-15T14:52:04.729586",
+      "id": 30,
+      "timestamp": "2026-01-16T11:12:43.463794",
       "source_utp": "485",
       "target_utp": "466",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -269,8 +389,32 @@
       }
     },
     {
-      "id": 23,
-      "timestamp": "2026-01-15T14:52:04.730616",
+      "id": 31,
+      "timestamp": "2026-01-16T11:12:43.464952",
+      "source_utp": "507",
+      "target_utp": "282",
+      "reason": "Sem RM - Fluxo Total BFS",
+      "details": {
+        "mun_id": 1200302,
+        "nm_mun": "Feijó",
+        "flow": 307835.9016178998
+      }
+    },
+    {
+      "id": 32,
+      "timestamp": "2026-01-16T11:12:43.466203",
+      "source_utp": "411",
+      "target_utp": "282",
+      "reason": "Sem RM - Fluxo Total BFS",
+      "details": {
+        "mun_id": 1300706,
+        "nm_mun": "Boca do Acre",
+        "flow": 282992.0
+      }
+    },
+    {
+      "id": 33,
+      "timestamp": "2026-01-16T11:12:43.467568",
       "source_utp": "133",
       "target_utp": "148",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -281,8 +425,8 @@
       }
     },
     {
-      "id": 24,
-      "timestamp": "2026-01-15T14:52:04.731663",
+      "id": 34,
+      "timestamp": "2026-01-16T11:12:43.468820",
       "source_utp": "656",
       "target_utp": "352",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -293,8 +437,8 @@
       }
     },
     {
-      "id": 25,
-      "timestamp": "2026-01-15T14:52:04.732724",
+      "id": 35,
+      "timestamp": "2026-01-16T11:12:43.470060",
       "source_utp": "608",
       "target_utp": "621",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -305,8 +449,8 @@
       }
     },
     {
-      "id": 26,
-      "timestamp": "2026-01-15T14:52:04.733807",
+      "id": 36,
+      "timestamp": "2026-01-16T11:12:43.471334",
       "source_utp": "484",
       "target_utp": "379",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -317,8 +461,8 @@
       }
     },
     {
-      "id": 27,
-      "timestamp": "2026-01-15T14:52:04.735387",
+      "id": 37,
+      "timestamp": "2026-01-16T11:12:43.472739",
       "source_utp": "465",
       "target_utp": "555",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -329,8 +473,8 @@
       }
     },
     {
-      "id": 28,
-      "timestamp": "2026-01-15T14:52:04.736713",
+      "id": 38,
+      "timestamp": "2026-01-16T11:12:43.474044",
       "source_utp": "145",
       "target_utp": "497",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -341,8 +485,8 @@
       }
     },
     {
-      "id": 29,
-      "timestamp": "2026-01-15T14:52:04.738247",
+      "id": 39,
+      "timestamp": "2026-01-16T11:12:43.475346",
       "source_utp": "615",
       "target_utp": "585",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -353,8 +497,20 @@
       }
     },
     {
-      "id": 30,
-      "timestamp": "2026-01-15T14:52:04.739501",
+      "id": 40,
+      "timestamp": "2026-01-16T11:12:43.476589",
+      "source_utp": "134",
+      "target_utp": "156",
+      "reason": "Sem RM - Fluxo Total BFS",
+      "details": {
+        "mun_id": 4301875,
+        "nm_mun": "Barra do Quaraí",
+        "flow": 201975.0
+      }
+    },
+    {
+      "id": 41,
+      "timestamp": "2026-01-16T11:12:43.477934",
       "source_utp": "673",
       "target_utp": "541",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -365,20 +521,8 @@
       }
     },
     {
-      "id": 31,
-      "timestamp": "2026-01-15T14:52:04.740775",
-      "source_utp": "461",
-      "target_utp": "378",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 5205307,
-        "nm_mun": "Cavalcante",
-        "flow": 193165.0
-      }
-    },
-    {
-      "id": 32,
-      "timestamp": "2026-01-15T14:52:04.741847",
+      "id": 42,
+      "timestamp": "2026-01-16T11:12:43.479205",
       "source_utp": "381",
       "target_utp": "732",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -389,20 +533,8 @@
       }
     },
     {
-      "id": 33,
-      "timestamp": "2026-01-15T14:52:04.742980",
-      "source_utp": "507",
-      "target_utp": "731",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 1200302,
-        "nm_mun": "Feijó",
-        "flow": 192669.12148420908
-      }
-    },
-    {
-      "id": 34,
-      "timestamp": "2026-01-15T14:52:04.744016",
+      "id": 43,
+      "timestamp": "2026-01-16T11:12:43.480484",
       "source_utp": "510",
       "target_utp": "38",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -413,8 +545,8 @@
       }
     },
     {
-      "id": 35,
-      "timestamp": "2026-01-15T14:52:04.745419",
+      "id": 44,
+      "timestamp": "2026-01-16T11:12:43.481764",
       "source_utp": "758",
       "target_utp": "782",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -425,8 +557,8 @@
       }
     },
     {
-      "id": 36,
-      "timestamp": "2026-01-15T14:52:04.746721",
+      "id": 45,
+      "timestamp": "2026-01-16T11:12:43.483106",
       "source_utp": "757",
       "target_utp": "647",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -437,44 +569,32 @@
       }
     },
     {
-      "id": 37,
-      "timestamp": "2026-01-15T14:52:04.747872",
-      "source_utp": "606",
-      "target_utp": "116",
+      "id": 46,
+      "timestamp": "2026-01-16T11:12:43.484303",
+      "source_utp": "152",
+      "target_utp": "672",
       "reason": "Sem RM - Fluxo Total BFS",
       "details": {
-        "mun_id": 5214606,
-        "nm_mun": "Niquelândia",
-        "flow": 176617.0
+        "mun_id": 4317103,
+        "nm_mun": "Sant'Ana do Livramento",
+        "flow": 181724.0
       }
     },
     {
-      "id": 38,
-      "timestamp": "2026-01-15T14:52:04.749069",
-      "source_utp": "445",
-      "target_utp": "763",
+      "id": 47,
+      "timestamp": "2026-01-16T11:12:43.485562",
+      "source_utp": "720",
+      "target_utp": "664",
       "reason": "Sem RM - Fluxo Total BFS",
       "details": {
-        "mun_id": 1502152,
-        "nm_mun": "Canaã dos Carajás",
-        "flow": 157361.8168094895
+        "mun_id": 2930204,
+        "nm_mun": "Sento Sé",
+        "flow": 123157.0
       }
     },
     {
-      "id": 39,
-      "timestamp": "2026-01-15T14:52:04.750318",
-      "source_utp": "371",
-      "target_utp": "295",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 2100204,
-        "nm_mun": "Alcântara",
-        "flow": 130581.0
-      }
-    },
-    {
-      "id": 40,
-      "timestamp": "2026-01-15T14:52:04.751599",
+      "id": 48,
+      "timestamp": "2026-01-16T11:12:43.486886",
       "source_utp": "686",
       "target_utp": "38",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -485,8 +605,8 @@
       }
     },
     {
-      "id": 41,
-      "timestamp": "2026-01-15T14:52:04.752649",
+      "id": 49,
+      "timestamp": "2026-01-16T11:12:43.488203",
       "source_utp": "136",
       "target_utp": "380",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -497,8 +617,8 @@
       }
     },
     {
-      "id": 42,
-      "timestamp": "2026-01-15T14:52:04.753834",
+      "id": 50,
+      "timestamp": "2026-01-16T11:12:43.489556",
       "source_utp": "493",
       "target_utp": "662",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -509,8 +629,8 @@
       }
     },
     {
-      "id": 43,
-      "timestamp": "2026-01-15T14:52:04.755371",
+      "id": 51,
+      "timestamp": "2026-01-16T11:12:43.490863",
       "source_utp": "150",
       "target_utp": "687",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -521,8 +641,8 @@
       }
     },
     {
-      "id": 44,
-      "timestamp": "2026-01-15T14:52:04.756647",
+      "id": 52,
+      "timestamp": "2026-01-16T11:12:43.492211",
       "source_utp": "689",
       "target_utp": "390",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -533,8 +653,8 @@
       }
     },
     {
-      "id": 45,
-      "timestamp": "2026-01-15T14:52:04.758187",
+      "id": 53,
+      "timestamp": "2026-01-16T11:12:43.493768",
       "source_utp": "655",
       "target_utp": "375",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -545,8 +665,8 @@
       }
     },
     {
-      "id": 46,
-      "timestamp": "2026-01-15T14:52:04.759709",
+      "id": 54,
+      "timestamp": "2026-01-16T11:12:43.495116",
       "source_utp": "147",
       "target_utp": "534",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -557,20 +677,8 @@
       }
     },
     {
-      "id": 47,
-      "timestamp": "2026-01-15T14:52:04.760975",
-      "source_utp": "131",
-      "target_utp": "372",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 4315305,
-        "nm_mun": "Quaraí",
-        "flow": 65190.0
-      }
-    },
-    {
-      "id": 48,
-      "timestamp": "2026-01-15T14:52:04.762427",
+      "id": 55,
+      "timestamp": "2026-01-16T11:12:43.496474",
       "source_utp": "785",
       "target_utp": "784",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -581,8 +689,8 @@
       }
     },
     {
-      "id": 49,
-      "timestamp": "2026-01-15T14:52:04.763638",
+      "id": 56,
+      "timestamp": "2026-01-16T11:12:43.497908",
       "source_utp": "547",
       "target_utp": "374",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -593,8 +701,8 @@
       }
     },
     {
-      "id": 50,
-      "timestamp": "2026-01-15T14:52:04.765235",
+      "id": 57,
+      "timestamp": "2026-01-16T11:12:43.499316",
       "source_utp": "573",
       "target_utp": "695",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -605,8 +713,8 @@
       }
     },
     {
-      "id": 51,
-      "timestamp": "2026-01-15T14:52:04.766713",
+      "id": 58,
+      "timestamp": "2026-01-16T11:12:43.500666",
       "source_utp": "740",
       "target_utp": "456",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -617,20 +725,8 @@
       }
     },
     {
-      "id": 52,
-      "timestamp": "2026-01-15T14:52:04.768092",
-      "source_utp": "399",
-      "target_utp": "540",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 1300300,
-        "nm_mun": "Autazes",
-        "flow": 52228.13574214945
-      }
-    },
-    {
-      "id": 53,
-      "timestamp": "2026-01-15T14:52:04.769370",
+      "id": 59,
+      "timestamp": "2026-01-16T11:12:43.501966",
       "source_utp": "132",
       "target_utp": "137",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -641,8 +737,8 @@
       }
     },
     {
-      "id": 54,
-      "timestamp": "2026-01-15T14:52:04.770746",
+      "id": 60,
+      "timestamp": "2026-01-16T11:12:43.503390",
       "source_utp": "141",
       "target_utp": "711",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -653,8 +749,8 @@
       }
     },
     {
-      "id": 55,
-      "timestamp": "2026-01-15T14:52:04.771996",
+      "id": 61,
+      "timestamp": "2026-01-16T11:12:43.505097",
       "source_utp": "565",
       "target_utp": "616",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -665,8 +761,8 @@
       }
     },
     {
-      "id": 56,
-      "timestamp": "2026-01-15T14:52:04.773238",
+      "id": 62,
+      "timestamp": "2026-01-16T11:12:43.506797",
       "source_utp": "697",
       "target_utp": "250",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -677,20 +773,8 @@
       }
     },
     {
-      "id": 57,
-      "timestamp": "2026-01-15T14:52:04.774643",
-      "source_utp": "411",
-      "target_utp": "567",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 1300706,
-        "nm_mun": "Boca do Acre",
-        "flow": 28360.0
-      }
-    },
-    {
-      "id": 58,
-      "timestamp": "2026-01-15T14:52:04.776222",
+      "id": 63,
+      "timestamp": "2026-01-16T11:12:43.508356",
       "source_utp": "387",
       "target_utp": "374",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -701,20 +785,8 @@
       }
     },
     {
-      "id": 59,
-      "timestamp": "2026-01-15T14:52:04.777749",
-      "source_utp": "659",
-      "target_utp": "671",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 1303536,
-        "nm_mun": "Presidente Figueiredo",
-        "flow": 23485.86409423009
-      }
-    },
-    {
-      "id": 60,
-      "timestamp": "2026-01-15T14:52:04.779049",
+      "id": 64,
+      "timestamp": "2026-01-16T11:12:43.510015",
       "source_utp": "528",
       "target_utp": "567",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -725,8 +797,8 @@
       }
     },
     {
-      "id": 61,
-      "timestamp": "2026-01-15T14:52:04.780403",
+      "id": 65,
+      "timestamp": "2026-01-16T11:12:43.511513",
       "source_utp": "383",
       "target_utp": "420",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -737,8 +809,20 @@
       }
     },
     {
-      "id": 62,
-      "timestamp": "2026-01-15T14:52:04.781684",
+      "id": 66,
+      "timestamp": "2026-01-16T11:12:43.513062",
+      "source_utp": "238",
+      "target_utp": "406",
+      "reason": "Sem RM - Fluxo Total BFS",
+      "details": {
+        "mun_id": 1303403,
+        "nm_mun": "Parintins",
+        "flow": 11887.359640590199
+      }
+    },
+    {
+      "id": 67,
+      "timestamp": "2026-01-16T11:12:43.514543",
       "source_utp": "586",
       "target_utp": "406",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -749,8 +833,8 @@
       }
     },
     {
-      "id": 63,
-      "timestamp": "2026-01-15T14:52:04.783163",
+      "id": 68,
+      "timestamp": "2026-01-16T11:12:43.516063",
       "source_utp": "470",
       "target_utp": "734",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -761,8 +845,8 @@
       }
     },
     {
-      "id": 64,
-      "timestamp": "2026-01-15T14:52:04.784659",
+      "id": 69,
+      "timestamp": "2026-01-16T11:12:43.517587",
       "source_utp": "579",
       "target_utp": "734",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -773,8 +857,8 @@
       }
     },
     {
-      "id": 65,
-      "timestamp": "2026-01-15T14:52:04.786672",
+      "id": 70,
+      "timestamp": "2026-01-16T11:12:43.519054",
       "source_utp": "452",
       "target_utp": "500",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -785,8 +869,8 @@
       }
     },
     {
-      "id": 66,
-      "timestamp": "2026-01-15T14:52:04.788301",
+      "id": 71,
+      "timestamp": "2026-01-16T11:12:43.520666",
       "source_utp": "509",
       "target_utp": "566",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -797,8 +881,8 @@
       }
     },
     {
-      "id": 67,
-      "timestamp": "2026-01-15T14:52:04.789916",
+      "id": 72,
+      "timestamp": "2026-01-16T11:12:43.522299",
       "source_utp": "563",
       "target_utp": "734",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -809,8 +893,8 @@
       }
     },
     {
-      "id": 68,
-      "timestamp": "2026-01-15T14:52:04.791322",
+      "id": 73,
+      "timestamp": "2026-01-16T11:12:43.523920",
       "source_utp": "613",
       "target_utp": "394",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -821,8 +905,8 @@
       }
     },
     {
-      "id": 69,
-      "timestamp": "2026-01-15T14:52:04.792782",
+      "id": 74,
+      "timestamp": "2026-01-16T11:12:43.525417",
       "source_utp": "416",
       "target_utp": "610",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -833,8 +917,8 @@
       }
     },
     {
-      "id": 70,
-      "timestamp": "2026-01-15T14:52:04.794166",
+      "id": 75,
+      "timestamp": "2026-01-16T11:12:43.527011",
       "source_utp": "682",
       "target_utp": "700",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -845,20 +929,8 @@
       }
     },
     {
-      "id": 71,
-      "timestamp": "2026-01-15T14:52:04.796051",
-      "source_utp": "770",
-      "target_utp": "97",
-      "reason": "Sem RM - Fluxo Total BFS",
-      "details": {
-        "mun_id": 3303807,
-        "nm_mun": "Paraty",
-        "flow": 1461.0
-      }
-    },
-    {
-      "id": 72,
-      "timestamp": "2026-01-15T14:52:04.797723",
+      "id": 76,
+      "timestamp": "2026-01-16T11:12:43.528561",
       "source_utp": "650",
       "target_utp": "375",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -869,8 +941,8 @@
       }
     },
     {
-      "id": 73,
-      "timestamp": "2026-01-15T14:52:04.799224",
+      "id": 77,
+      "timestamp": "2026-01-16T11:12:43.530031",
       "source_utp": "382",
       "target_utp": "692",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -881,8 +953,8 @@
       }
     },
     {
-      "id": 74,
-      "timestamp": "2026-01-15T14:52:04.800604",
+      "id": 78,
+      "timestamp": "2026-01-16T11:12:43.531627",
       "source_utp": "566",
       "target_utp": "692",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -893,8 +965,8 @@
       }
     },
     {
-      "id": 75,
-      "timestamp": "2026-01-15T14:52:04.801939",
+      "id": 79,
+      "timestamp": "2026-01-16T11:12:43.533198",
       "source_utp": "715",
       "target_utp": "692",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -905,20 +977,20 @@
       }
     },
     {
-      "id": 76,
-      "timestamp": "2026-01-15T14:52:08.623331",
-      "source_utp": "720",
-      "target_utp": "253",
+      "id": 80,
+      "timestamp": "2026-01-16T11:12:47.355950",
+      "source_utp": "152",
+      "target_utp": "672",
       "reason": "Sem RM - Fluxo Total BFS",
       "details": {
-        "mun_id": 2930204,
-        "nm_mun": "Sento Sé",
-        "flow": 718667.0
+        "mun_id": 4315305,
+        "nm_mun": "Quaraí",
+        "flow": 429366.0
       }
     },
     {
-      "id": 77,
-      "timestamp": "2026-01-15T14:52:08.625548",
+      "id": 81,
+      "timestamp": "2026-01-16T11:12:47.357843",
       "source_utp": "786",
       "target_utp": "782",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -929,8 +1001,8 @@
       }
     },
     {
-      "id": 78,
-      "timestamp": "2026-01-15T14:52:08.627334",
+      "id": 82,
+      "timestamp": "2026-01-16T11:12:47.359734",
       "source_utp": "553",
       "target_utp": "734",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -941,8 +1013,8 @@
       }
     },
     {
-      "id": 79,
-      "timestamp": "2026-01-15T14:52:08.630697",
+      "id": 83,
+      "timestamp": "2026-01-16T11:12:47.361377",
       "source_utp": "566",
       "target_utp": "692",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -953,8 +1025,8 @@
       }
     },
     {
-      "id": 80,
-      "timestamp": "2026-01-15T14:52:08.632256",
+      "id": 84,
+      "timestamp": "2026-01-16T11:12:47.363202",
       "source_utp": "577",
       "target_utp": "394",
       "reason": "Sem RM - Fluxo Total BFS",
@@ -965,8 +1037,8 @@
       }
     },
     {
-      "id": 81,
-      "timestamp": "2026-01-15T14:52:08.633953",
+      "id": 85,
+      "timestamp": "2026-01-16T11:12:47.365003",
       "source_utp": "403",
       "target_utp": "700",
       "reason": "Sem RM - Fluxo Total BFS",
