@@ -38,7 +38,7 @@ def render_sede_table(df: pd.DataFrame, show_alerts_only: bool = False) -> None:
     # Exibir tabela com formatação
     st.dataframe(
         df_display,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         column_config={
             'UTP': st.column_config.TextColumn('UTP', width='small'),

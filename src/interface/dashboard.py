@@ -533,7 +533,7 @@ def render_dashboard(manager):
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("Rodar Agora", use_container_width=True, help="Executa o pipeline completo de consolidação (Fluxos + REGIC)"):
+                if st.button("Rodar Agora", width='stretch', help="Executa o pipeline completo de consolidação (Fluxos + REGIC)"):
                     with st.spinner("Executando pipeline..."):
                         if run_consolidation():
                             st.success("Sucesso!")
@@ -542,12 +542,12 @@ def render_dashboard(manager):
                             st.error("Falha na execução.")
             
             with col2:
-                if st.button("Limpar Cache", use_container_width=True):
+                if st.button("Limpar Cache", width='stretch'):
                     consolidation_loader.clear()
                     st.rerun()
         else:
             st.warning("Nenhuma consolidação em cache")
-            if st.button("Executar Consolidação", use_container_width=True):
+            if st.button("Executar Consolidação", width='stretch'):
                 with st.spinner("Executando pipeline..."):
                     if run_consolidation():
                         st.success("Sucesso!")
@@ -641,7 +641,7 @@ def render_dashboard(manager):
             # Mostrar todas as UTPs
             st.dataframe(
                 utp_summary,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 height=600
             )
@@ -683,7 +683,7 @@ def render_dashboard(manager):
         with col_title:
             st.markdown("Mapa da distribuição após consolidação de UTPs unitárias e limpeza territorial.")
         with col_btn:
-            if st.button("Rodar Pipeline", use_container_width=True, key="btn_tab_run"):
+            if st.button("Rodar Pipeline", width='stretch', key="btn_tab_run"):
                 with st.spinner("Executando..."):
                     if run_consolidation():
                         st.success("Feito!")
@@ -730,7 +730,7 @@ def render_dashboard(manager):
             
             # Preparar dados para planilha
             df_consolidations = consolidation_loader.export_as_dataframe()
-            st.dataframe(df_consolidations, use_container_width=True, hide_index=True)
+            st.dataframe(df_consolidations, width='stretch', hide_index=True)
             
             # Download do resultado
             result_json = json.dumps(consolidation_loader.result, ensure_ascii=False, indent=2)
@@ -776,7 +776,7 @@ def render_dashboard(manager):
                 
                 st.dataframe(
                     df_unitary,
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True
                 )
                 
@@ -816,7 +816,7 @@ def render_dashboard(manager):
                 df_non_contiguous = pd.DataFrame(non_contiguous_data)
                 st.dataframe(
                     df_non_contiguous,
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True
                 )
                 
@@ -849,7 +849,7 @@ def render_dashboard(manager):
         st.markdown("---")
         
         # Inicializar analisador com cache
-        @st.cache_data(show_spinner="Analisando dependências entre sedes...")
+        @st.cache_data(show_spinner="Analisando dependências entre sedes...", hash_funcs={pd.DataFrame: id})
         def run_sede_analysis():
             """
             Executa análise de dependências e retorna resultados.
