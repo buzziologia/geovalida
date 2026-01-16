@@ -503,7 +503,12 @@ def render_dashboard(manager):
             selected_ufs = st.multiselect("Estados (UF)", ufs, default=[])
         
         # Filtro por UTP
-        utps_list = sorted(df_municipios['utp_id'].unique().tolist())
+        if selected_ufs:
+            df_utp_options = df_municipios[df_municipios['uf'].isin(selected_ufs)]
+        else:
+            df_utp_options = df_municipios
+            
+        utps_list = sorted(df_utp_options['utp_id'].unique().tolist())
         all_utps = st.checkbox("Todas as UTPs", value=False)
         
         if all_utps:
@@ -717,9 +722,8 @@ def render_dashboard(manager):
                 )
                 
                 if selected_utps:
-                    target_utps = set(c['target_utp'] for c in consolidations)
                     gdf_consolidated = gdf_consolidated[
-                        gdf_consolidated['utp_id'].isin(target_utps | set(selected_utps))
+                        gdf_consolidated['utp_id'].isin(selected_utps)
                     ]
                 
                 st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_consolidated)} Municípios")
