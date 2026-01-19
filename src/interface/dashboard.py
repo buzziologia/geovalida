@@ -50,6 +50,39 @@ st.markdown("""
     }
     .status-executed { background-color: #d4edda; color: #155724; }
     .status-pending { background-color: #fff3cd; color: #856404; }
+    
+    /* Forçar alinhamento à esquerda das tabs */
+    .stTabs {
+        width: 100% !important;
+    }
+    
+    .stTabs [data-baseweb="tab-list"] {
+        justify-content: flex-start !important;
+        gap: 1rem !important; /* Reduzido de 2rem */
+        width: 100% !important;
+        margin-left: 0 !important;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: auto !important;
+        white-space: pre-wrap !important;
+        background-color: transparent !important;
+        border: none !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        margin-right: 1.5rem !important; /* Espaçamento entre tabs */
+        flex-grow: 0 !important; /* Impede que estiquem */
+    }
+
+    /* Container das tabs - removendo centralização do Streamlit */
+    div[data-testid="stHorizontalBlock"] > div:has([data-baseweb="tab-list"]) {
+        width: 100% !important;
+    }
+    
+    /* Garantir que o indicador de seleção acompanhe */
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: #1351B4 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
