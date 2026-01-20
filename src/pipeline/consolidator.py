@@ -219,41 +219,91 @@ class UTPConsolidator:
                     if flow > max_flow:
                         max_flow, best_target = flow, v_id
                 
+                
+                # DECISION POINT: Flow-based vs REGIC-based consolidation
                 if best_target and max_flow > 0:
+                    # PRIMARY PATH: Consolidate based on flow
                     possible_moves.append({
                         'mun_id': mun_id,
                         'origin_utp': utp_id,
                         'target_utp': best_target,
                         'flow': max_flow,
-                        'nm_mun': nm_mun
+                        'nm_mun': nm_mun,
+                        'reason': 'flow'
+                    })
+                elif candidates:
+                    # FALLBACK PATH: Zero flow -> Use REGIC hierarchy
+                    self.logger.info(f"  [ZERO FLOW] Usando critério REGIC para {nm_mun}...")
+                    
+                    # Score all candidates by REGIC
+                    scored_candidates = []
+                    for v_id in candidates:
+                        regic_score = self.validator.get_utp_regic_score(v_id)
+                        boundary_len = self.validator.get_shared_boundary_length(mun_id, v_id, gdf)
+                        
+                        scored_candidates.append({
+                            'utp_id': v_id,
+                            'regic': regic_score,
+                            'boundary': boundary_len
+                        })
+                        self.logger.info(f"    -> UTP {v_id}: REGIC={regic_score}, Fronteira={boundary_len:.0f}m")
+                    
+                    # Sort by: Best REGIC (lowest) > Largest Boundary
+                    scored_candidates.sort(key=lambda x: (x['regic'], -x['boundary']))
+                    best = scored_candidates[0]
+                    
+                    possible_moves.append({
+                        'mun_id': mun_id,
+                        'origin_utp': utp_id,
+                        'target_utp': best['utp_id'],
+                        'flow': 0.0,
+                        'nm_mun': nm_mun,
+                        'reason': 'regic',
+                        'regic_rank': best['regic']
                     })
                 else:
-                    self.logger.warning(f"  [REJEITADO]: Fluxo zero para todos os candidatos.")
+                    self.logger.warning(f"  [REJEITADO]: Sem candidatos válidos.")
+
+            
             
             if not possible_moves:
-                self.logger.warning(f"Fim: {len(unitarias_sem_rm)} UTPs isoladas por falta de fluxo.")
+                self.logger.warning(f"Fim: {len(unitarias_sem_rm)} UTPs isoladas (sem vizinhos válidos).")
                 break
             
-            # Ordena por fluxo descrescente e aplica
-            possible_moves.sort(key=lambda x: x['flow'], reverse=True)
+            # Ordena: Fluxo > 0 primeiro (desc), depois REGIC (melhor rank primeiro)
+            possible_moves.sort(key=lambda x: (
+                0 if x['reason'] == 'flow' else 1,  # Flow-based primeiro
+                -x['flow'] if x['reason'] == 'flow' else x.get('regic_rank', 999)  # Dentro de cada tipo
+            ))
             changes_in_round = 0
             consumed = set()
+
             
             for move in possible_moves:
                 # Evita conflitos de dependência na mesma iteração
                 if move['target_utp'] in consumed or move['origin_utp'] in consumed:
                     continue
                 
-                self.logger.info(f"✅ MOVENDO (Sem RM): {move['nm_mun']} -> UTP {move['target_utp']} (Fluxo: {move['flow']:.2f})")
+                # Log diferenciado por tipo de consolidação
+                if move['reason'] == 'flow':
+                    self.logger.info(f"✅ MOVENDO (Sem RM): {move['nm_mun']} -> UTP {move['target_utp']} (Fluxo: {move['flow']:.2f})")
+                    reason_str = "Sem RM - Fluxo Total BFS"
+                    details = {"mun_id": move['mun_id'], "nm_mun": move['nm_mun'], "flow": move['flow']}
+                else:  # reason == 'regic'
+                    self.logger.info(f"✅ MOVENDO (Sem RM): {move['nm_mun']} -> UTP {move['target_utp']} (REGIC Fallback: Rank={move['regic_rank']})")
+                    reason_str = "Sem RM - REGIC Fallback"
+                    details = {"mun_id": move['mun_id'], "nm_mun": move['nm_mun'], "regic_rank": move['regic_rank']}
+                
                 self.graph.move_municipality(move['mun_id'], move['target_utp'])
                 
                 # Registrar consolidação
                 self.consolidation_manager.add_consolidation(
                     source_utp=move['origin_utp'],
                     target_utp=move['target_utp'],
-                    reason="Sem RM - Fluxo Total BFS",
-                    details={"mun_id": move['mun_id'], "nm_mun": move['nm_mun'], "flow": move['flow']}
+                    reason=reason_str,
+                    details=details
                 )
+
                 
                 consumed.add(move['origin_utp'])
                 changes_in_round += 1

@@ -42,6 +42,18 @@ class TerritorialValidator:
         level_desc = self.graph.mun_regic.get(int(cd_mun), '6')
         return self.REGIC_RANK.get(level_desc, 99)
 
+    def get_utp_regic_score(self, utp_id: str) -> int:
+        """Retorna o score REGIC de uma UTP baseado em seu município sede."""
+        if not hasattr(self.graph, 'utp_seeds'):
+            return 999
+        
+        sede_mun = self.graph.utp_seeds.get(utp_id)
+        if not sede_mun:
+            return 999
+        
+        return self.get_regic_score(sede_mun)
+
+
     def _safe_get_geometry(self, gdf: gpd.GeoDataFrame, filter_col: str, value):
         """Retorna a geometria de forma segura, tratando inconsistências de tipos."""
         if gdf is None or gdf.empty:

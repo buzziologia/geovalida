@@ -159,8 +159,8 @@ class GeoValidaManager:
         try:
             df_rm = pd.read_excel(FILES['rm_composition'], dtype={'COD_MUN': str})
             # Filtrar colunas relevantes
-            if 'COD_MUN' in df_rm.columns and 'NOME_CATMETROPOL' in df_rm.columns:
-                rm_mapping = df_rm.set_index('COD_MUN')['NOME_CATMETROPOL'].to_dict()
+            if 'COD_MUN' in df_rm.columns and 'NOME_RECMETROPOL' in df_rm.columns:
+                rm_mapping = df_rm.set_index('COD_MUN')['NOME_RECMETROPOL'].to_dict()
                 
                 count_updates = 0
                 # Atualizar info de RM no grafo (se o nó do município existir)
@@ -176,7 +176,7 @@ class GeoValidaManager:
                 self.logger.info(f"  ✓ RM Composição: {len(df_rm)} linhas. {count_updates} municípios atualizados no grafo.")
                 
             else:
-                self.logger.warning("  ⚠️ Arquivo de RM não possui colunas 'COD_MUN' e 'NOME_CATMETROPOL'.")
+                self.logger.warning("  ⚠️ Arquivo de RM não possui colunas 'COD_MUN' e 'NOME_RECMETROPOL'.")
 
         except Exception as e:
             self.logger.error(f"  ❌ Erro ao carregar Composição de RM: {e}")
