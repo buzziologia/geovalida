@@ -49,10 +49,18 @@ class UTPMapGenerator:
             raise RuntimeError("GeoDataFrame não contém coluna 'CD_MUN'.")
 
         # Constrói mapeamento do grafo: município -> UTP
-        mapping = {}
+        utp_mapping = {}
+        rm_mapping = {}
+        
         for node, data in graph.hierarchy.nodes(data=True):
             if data.get('type') == 'municipality':
                 mun_id = int(node)
+                
+                # RM Mapping
+                rm_name = data.get('regiao_metropolitana')
+                if rm_name:
+                    rm_mapping[mun_id] = rm_name
+
                 # encontra o pai UTP
                 parents = list(graph.hierarchy.predecessors(node))
                 utp_id = None
@@ -62,21 +70,23 @@ class UTPMapGenerator:
                         utp_id = ps.replace('UTP_', '')
                         break
                 if utp_id:
-                    mapping[mun_id] = utp_id
+                    utp_mapping[mun_id] = utp_id
 
-        self.logger.info(f"Mapeamento: {len(mapping)} municípios → UTPs")
+        self.logger.info(f"Mapeamento: {len(utp_mapping)} municípios → UTPs / {len(rm_mapping)} municípios → RMs")
 
         # Aplica mapeamento de forma vetorizada
         try:
             # Converte CD_MUN para int para matching correto
             self.gdf_complete['CD_MUN_int'] = self.gdf_complete['CD_MUN'].astype(int)
-            self.gdf_complete['UTP_ID'] = self.gdf_complete['CD_MUN_int'].map(mapping)
+            self.gdf_complete['UTP_ID'] = self.gdf_complete['CD_MUN_int'].map(utp_mapping)
+            self.gdf_complete['RM_NAME'] = self.gdf_complete['CD_MUN_int'].map(rm_mapping)
             
             # Remove coluna temporária
             self.gdf_complete.drop('CD_MUN_int', axis=1, inplace=True)
             
             # Preenche NAs com valor padrão
             self.gdf_complete['UTP_ID'] = self.gdf_complete['UTP_ID'].fillna('SEM_UTP')
+            self.gdf_complete['RM_NAME'] = self.gdf_complete['RM_NAME'].fillna('SEM_RM')
             
             self.logger.info(f"Sincronização completa. UTPs únicas: {self.gdf_complete['UTP_ID'].nunique()}")
         except Exception as e:
@@ -85,18 +95,61 @@ class UTPMapGenerator:
 
         return self
 
-    def save_map(self, output_path, title="Mapa UTP"):
-        """Gera e salva a imagem do mapa."""
+    def save_map(self, output_path, title="Mapa UTP", column='UTP_ID'):
+        """Gera e salva a imagem do mapa.
+        
+        Args:
+            output_path (Path): Caminho para salvar a imagem.
+            title (str): Título do mapa.
+            column (str): Coluna a ser usada para colorir o mapa (padrão: 'UTP_ID').
+        """
         if self.gdf_complete is None:
             raise RuntimeError("GDF não carregado. Execute `load_shapefiles()` antes.")
 
         fig, ax = plt.subplots(figsize=(15, 15))
         # Lógica de plotagem (cores por UTP, bordas de UF, etc)
         try:
-            self.gdf_complete.plot(ax=ax, column='UTP_ID', cmap='tab20')
+            self.gdf_complete.plot(ax=ax, column=column, cmap='tab20', legend=True)
+            # Remove legend if too many categories? For now keep default.
         except Exception as e:
             self.logger.error(f"Erro ao plotar o mapa: {e}")
             raise
         plt.title(title)
         plt.savefig(output_path)
         plt.close()
+
+    def save_rm_map(self, output_path):
+        """Gera um mapa específico das Regiões Metropolitanas, dissolvendo municípios."""
+        self.logger.info(f"Gerando mapa de RMs em {output_path}...")
+        
+        if self.gdf_complete is None:
+            raise RuntimeError("GDF não carregado.")
+            
+        try:
+            # Filtra apenas quem tem RM
+            gdf_rms = self.gdf_complete[self.gdf_complete['RM_NAME'] != 'SEM_RM'].copy()
+            
+            if gdf_rms.empty:
+                self.logger.warning("Nenhuma RM encontrada para plotar.")
+                return
+
+            # Dissolve por Nome da RM para criar o contorno
+            gdf_dissolved = gdf_rms.dissolve(by='RM_NAME')
+            
+            fig, ax = plt.subplots(figsize=(15, 15))
+            
+            # Plotar mapa base (cinza claro)
+            base = self.gdf_complete.plot(ax=ax, color='#f0f0f0', edgecolor='white', linewidth=0.2)
+            
+            # Plotar RMs coloridas
+            gdf_dissolved.plot(ax=ax, cmap='Set2', alpha=0.6, edgecolor='black', linewidth=0.5, legend=True)
+            
+            plt.title("Regiões Metropolitanas (Baseadas em Municípios)")
+            plt.savefig(output_path)
+            plt.close()
+            self.logger.info("Mapa de RMs salvo com sucesso.")
+            
+        except Exception as e:
+            self.logger.error(f"Erro ao gerar mapa de RMs: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())

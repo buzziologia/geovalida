@@ -146,11 +146,40 @@ class GeoValidaManager:
                 
                 # Popula o Grafo
                 self.graph.load_from_dataframe(df_utp, df_regic)
+
             except Exception as e:
                 self.logger.error(f"Arquivo não encontrado: {e}")
                 self.logger.error(f"Verifique se os arquivos estão em data/01_raw/")
                 return False
         
+        # --- CARREGAR COMPOSIÇÃO DE RMs (NOVO - MOVIDO PARA FORA DO BLOCO CONDICIONAL) ---
+        self.logger.info(f"Carregando Composição de RMs de {FILES['rm_composition']}...")
+        try:
+            df_rm = pd.read_excel(FILES['rm_composition'], dtype={'COD_MUN': str})
+            # Filtrar colunas relevantes
+            if 'COD_MUN' in df_rm.columns and 'NOME_RECMETROPOL' in df_rm.columns:
+                rm_mapping = df_rm.set_index('COD_MUN')['NOME_RECMETROPOL'].to_dict()
+                
+                count_updates = 0
+                # Atualizar info de RM no grafo (se o nó do município existir)
+                for mun_node in self.graph.hierarchy.nodes():
+                    if self.graph.hierarchy.nodes[mun_node].get('type') == 'municipality':
+                        # tenta obter RM do mapping
+                        rm_name = rm_mapping.get(str(mun_node))
+                        if rm_name:
+                            # Atualiza atributo no nó
+                            self.graph.hierarchy.nodes[mun_node]['regiao_metropolitana'] = rm_name
+                            count_updates += 1
+                
+                self.logger.info(f"  ✓ RM Composição: {len(df_rm)} linhas. {count_updates} municípios atualizados no grafo.")
+                
+            else:
+                self.logger.warning("  ⚠️ Arquivo de RM não possui colunas 'COD_MUN' e 'NOME_RECMETROPOL'.")
+
+        except Exception as e:
+            self.logger.error(f"  ❌ Erro ao carregar Composição de RM: {e}")
+            # Não pára o processo, apenas loga o erro
+
         # Sempre carregar shapefiles (independente da fonte de dados)
         self.logger.info(f"Carregando shapefiles...")
         try:
@@ -171,6 +200,9 @@ class GeoValidaManager:
         (self.map_generator
             .sync_with_graph(self.graph)
             .save_map(FILES['mapa_01'], title="Situação Inicial das UTPs"))
+        
+        # Gera também o mapa de RMs
+        self.map_generator.save_rm_map(FILES['mapa_rm'])
 
     def step_2_analyze_flows(self):
         """Analisa a Matriz OD para encontrar dependências funcionais."""
