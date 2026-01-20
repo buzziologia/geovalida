@@ -11,7 +11,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from main import GeoValidaManager
+from src.core.manager import GeoValidaManager
 from src.interface.consolidation_manager import ConsolidationManager
 from src.interface.consolidation_loader import ConsolidationLoader
 import logging

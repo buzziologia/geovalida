@@ -184,7 +184,7 @@ def load_metropolitan_regions():
         df = pd.read_excel(file_path)
         
         # Verificar colunas necessárias
-        required_cols = ['COD_MUN', 'NOME_RECMETROPOL']
+        required_cols = ['COD_MUN', 'NOME_CATMETROPOL']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             logger.warning(f"  ⚠ Colunas ausentes: {missing_cols}")
@@ -354,7 +354,7 @@ def consolidate_data(
             if not df_rm.empty:
                 rm_row = df_rm[df_rm['COD_MUN'] == cd_mun]
                 if not rm_row.empty:
-                    regiao_metrop = str(rm_row.iloc[0]['NOME_RECMETROPOL'])
+                    regiao_metrop = str(rm_row.iloc[0]['NOME_CATMETROPOL'])
             
             # Verificar se é sede
             is_sede = cd_mun == sede_lookup.get(utp_id)

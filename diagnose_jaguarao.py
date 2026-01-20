@@ -7,7 +7,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 # Import manager
-from main import GeoValidaManager
+from src.core.manager import GeoValidaManager
 
 def diagnose():
     print("Initializing Manager...")

@@ -1,6 +1,6 @@
 # app.py (Raiz)
 import streamlit as st
-from main import GeoValidaManager
+from src.core.manager import GeoValidaManager
 from src.interface.dashboard import render_dashboard
 from src.utils import DataLoader
 import logging
