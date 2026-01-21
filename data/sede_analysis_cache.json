@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-01-21T11:44:36.954900",
+    "timestamp": "2026-01-21T13:46:29.172993",
     "consolidation_applied": true,
     "total_sedes": 666,
     "version": "1.0"
@@ -11,7 +11,7 @@
     "total_alertas": 1,
     "utps_analisadas": 660,
     "populacao_total": 0,
-    "sedes_com_aeroporto": 124
+    "sedes_com_aeroporto": 125
   },
   "sede_analysis": [
     {
@@ -3176,6 +3176,27 @@
       "alerta_detalhes": ""
     },
     {
+      "utp_id": "214",
+      "cd_mun_sede": 3139409,
+      "nm_sede": "Manhuaçu",
+      "uf": "MG",
+      "regic": "Centro Sub-Regional A",
+      "regiao_metropolitana": "",
+      "populacao_total_utp": 0,
+      "num_municipios": 36,
+      "total_viagens": 33706826,
+      "tem_aeroporto": true,
+      "aeroporto_icao": "SNJM",
+      "aeroporto_passageiros": 635,
+      "turismo": "",
+      "principal_destino_cd": 3154150.0,
+      "principal_destino_nm": "Reduto",
+      "proporcao_fluxo_principal": 0.09698596433115837,
+      "tempo_ate_destino_h": 0.0,
+      "tem_alerta_dependencia": false,
+      "alerta_detalhes": ""
+    },
+    {
       "utp_id": "728",
       "cd_mun_sede": 2309300,
       "nm_sede": "Nova Russas",
@@ -5990,27 +6011,6 @@
       "alerta_detalhes": ""
     },
     {
-      "utp_id": "207",
-      "cd_mun_sede": 3113404,
-      "nm_sede": "Caratinga",
-      "uf": "MG",
-      "regic": "Centro Sub-Regional B",
-      "regiao_metropolitana": "Recorte Metropolitano do Vale do Aço",
-      "populacao_total_utp": 0,
-      "num_municipios": 37,
-      "total_viagens": 44358875,
-      "tem_aeroporto": false,
-      "aeroporto_icao": "",
-      "aeroporto_passageiros": 0,
-      "turismo": "",
-      "principal_destino_cd": 3170057.0,
-      "principal_destino_nm": "Ubaporanga",
-      "proporcao_fluxo_principal": 0.16416043523645074,
-      "tempo_ate_destino_h": 0.0,
-      "tem_alerta_dependencia": false,
-      "alerta_detalhes": ""
-    },
-    {
       "utp_id": "438",
       "cd_mun_sede": 3114402,
       "nm_sede": "Carmo do Rio Claro",
@@ -6207,8 +6207,8 @@
       "regic": "Capital Regional C",
       "regiao_metropolitana": "Recorte Metropolitano do Vale do Aço",
       "populacao_total_utp": 0,
-      "num_municipios": 27,
-      "total_viagens": 45888543,
+      "num_municipios": 28,
+      "total_viagens": 56540592,
       "tem_aeroporto": true,
       "aeroporto_icao": "SBIP",
       "aeroporto_passageiros": 149065,

@@ -119,7 +119,43 @@ def run_consolidation():
         except Exception as e:
             logger.warning(f"⚠️ Erro ao executar análise de dependências: {e}")
         
-        # 10. Exibir resumo
+
+        # 10. Gerar Cache de Coloração do Mapa (Otimização de Startup)
+        logger.info("\n🔟 Gerando cache de coloração do mapa...")
+        try:
+            import json
+            
+            # Usar o GDF completo do map_generator
+            gdf_complete = manager.map_generator.gdf_complete
+            
+            if gdf_complete is not None and not gdf_complete.empty:
+                # O método compute_graph_coloring espera as colunas UTP_ID e CD_MUN
+                # Vamos preparar um GDF compatível
+                gdf_for_coloring = gdf_complete.copy()
+                
+                # Garantir nomes de colunas esperados pelo graph.py
+                # O graph.py usa: row['CD_MUN'] e row['UTP_ID'] ou row['utp_id']
+                if 'utp_id' in gdf_for_coloring.columns and 'UTP_ID' not in gdf_for_coloring.columns:
+                    gdf_for_coloring['UTP_ID'] = gdf_for_coloring['utp_id']
+                
+                # Calcular coloração
+                coloring = manager.graph.compute_graph_coloring(gdf_for_coloring)
+                
+                # Salvar em arquivo
+                coloring_cache_path = Path(project_root) / "data" / "map_coloring_cache.json"
+                with open(coloring_cache_path, "w") as f:
+                    json.dump(coloring, f)
+                    
+                logger.info(f"✅ Cache de coloração salvo em: {coloring_cache_path}")
+                logger.info(f"   🎨 {len(coloring)} municípios coloridos")
+            else:
+                logger.warning("⚠️ GDF vazio, pulando cache de coloração.")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Erro ao gerar cache de coloração: {e}")
+            # Não falha o pipeline por isso
+        
+        # 11. Exibir resumo
         logger.info("\n" + "=" * 80)
         logger.info("RESUMO DA EXECUÇÃO")
         logger.info("=" * 80)
@@ -135,6 +171,8 @@ def run_consolidation():
         logger.info(f"📁 Arquivos gerados:")
         logger.info(f"   - data/consolidation_log.json (Log detalhado)")
         logger.info(f"   - data/consolidation_result.json (Cache rápido)")
+        logger.info(f"   - data/map_coloring_cache.json (Cache de renderização)")
+        logger.info(f"   - data/sede_analysis_cache.json (Cache de análise)")
         logger.info("\n💡 Dica: Recarregue o Streamlit para ver os resultados!")
         
         return True

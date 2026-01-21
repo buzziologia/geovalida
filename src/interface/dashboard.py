@@ -94,102 +94,74 @@ PASTEL_PALETTE = [
 ]
 
 
-@st.cache_data(show_spinner=True, hash_funcs={gpd.GeoDataFrame: id, pd.DataFrame: id})
-def get_geodataframe(shapefile_path, df_municipios):
-    """Carrega, processa e simplifica o shapefile com cache."""
-    if not shapefile_path.exists():
+@st.cache_data(show_spinner="Carregando mapa...", hash_funcs={gpd.GeoDataFrame: id, pd.DataFrame: id})
+def get_geodataframe(optimized_geojson_path, df_municipios):
+    """
+    Carrega o GeoDataFrame pré-processado de municípios.
+    
+    Se o arquivo otimizado não existir (gerado pelo pipeline main.py),
+    exibe um aviso e retorna None.
+    """
+    if not optimized_geojson_path.exists():
+        st.warning("""
+        **GeoDataFrame otimizado não encontrado!**
+        
+        Para melhor performance, execute o pipeline completo:
+        ```bash
+        python main.py
+        ```
+        Isso irá pré-processar e salvar os GeoDataFrames otimizados.
+        """)
         return None
 
     try:
-        gdf = gpd.read_file(shapefile_path)
+        # Carregar GeoJSON pré-processado
+        gdf = gpd.read_file(optimized_geojson_path)
         
-        # Reprojetar para WGS84 (EPSG:4326) - Folium espera este CRS
-        # O shapefile original está em SIRGAS2000 (EPSG:4674)
-        if gdf.crs and gdf.crs.to_epsg() != 4326:
-            gdf = gdf.to_crs(epsg=4326)
-        
-        # Converter IDs para string
-        gdf['CD_MUN'] = gdf['CD_MUN'].astype(str)
-        # Garantir cópia para não afetar cache original do pandas se houver
+        # Atualizar com dados mais recentes do df_municipios
+        # (caso o initialization.json tenha sido alterado após o pré-processamento)
         df_mun_copy = df_municipios.copy()
         df_mun_copy['cd_mun'] = df_mun_copy['cd_mun'].astype(str)
+        gdf['CD_MUN'] = gdf['CD_MUN'].astype(str)
         
-        # Juntar dados
-        gdf = gdf.merge(df_mun_copy[['cd_mun', 'uf', 'utp_id', 'sede_utp', 'regiao_metropolitana', 'nm_mun']], 
-                       left_on='CD_MUN', right_on='cd_mun', how='left')
+        # Re-merge para garantir dados atualizados
+        gdf = gdf.drop(columns=['uf', 'utp_id', 'sede_utp', 'regiao_metropolitana', 'nm_sede'], errors='ignore')
+        gdf = gdf.merge(
+            df_mun_copy[['cd_mun', 'uf', 'utp_id', 'sede_utp', 'regiao_metropolitana', 'nm_mun']], 
+            left_on='CD_MUN', right_on='cd_mun', how='left'
+        )
         
-        # Identificar nomes das sedes
+        # Recalcular nomes das sedes
         df_sedes = df_mun_copy[df_mun_copy['sede_utp'] == True][['utp_id', 'nm_mun']].set_index('utp_id')
         sede_mapper = df_sedes['nm_mun'].to_dict()
         gdf['nm_sede'] = gdf['utp_id'].map(sede_mapper).fillna('')
-        
-        # Simplificar geometria com preservação de topologia - tolerance de 0.002 graus (~200m)
-        gdf['geometry'] = gdf.geometry.simplify(tolerance=0.002, preserve_topology=True)
         gdf['regiao_metropolitana'] = gdf['regiao_metropolitana'].fillna('')
-        
-        # Manter apenas colunas essenciais
-        cols_to_keep = ['NM_MUN', 'CD_MUN', 'geometry', 'uf', 'utp_id', 'sede_utp', 'regiao_metropolitana', 'nm_sede']
-        existing_cols = [c for c in cols_to_keep if c in gdf.columns]
-        gdf = gdf[existing_cols]
         
         return gdf
     except Exception as e:
-        st.error(f"Erro no processamento do mapa: {e}")
+        st.error(f"Erro ao carregar mapa otimizado: {e}")
         return None
 
 
-@st.cache_data(show_spinner=True, hash_funcs={gpd.GeoDataFrame: id, pd.DataFrame: id})
-def get_derived_rm_geodataframe(shapefile_path, df_municipios):
+@st.cache_data(show_spinner="Carregando RMs...", hash_funcs={gpd.GeoDataFrame: id})
+def get_derived_rm_geodataframe(optimized_rm_geojson_path):
     """
-    Gera geometrias de RMs dissolvendo os municípios a partir do shapefile original.
-    Carrega o shapefile bruto para evitar buracos causados por simplificação prévia.
+    Carrega o GeoDataFrame pré-processado de Regiões Metropolitanas.
+    
+    Se o arquivo otimizado não existir (gerado pelo pipeline main.py),
+    retorna None silenciosamente (RMs são opcionais).
     """
-    if not shapefile_path.exists() or df_municipios is None or df_municipios.empty:
+    if not optimized_rm_geojson_path.exists():
+        logging.info("GeoDataFrame de RMs otimizado não encontrado (opcional)")
         return None
     
     try:
-        # Carregar shapefile bruto
-        gdf_raw = gpd.read_file(shapefile_path)
-        
-        # Converter CD_MUN para matching
-        gdf_raw['CD_MUN'] = gdf_raw['CD_MUN'].astype(str)
-        df_mun_copy = df_municipios.copy()
-        df_mun_copy['cd_mun'] = df_mun_copy['cd_mun'].astype(str)
-        
-        # Merge para pegar a região metropolitana
-        gdf_merged = gdf_raw.merge(
-            df_mun_copy[['cd_mun', 'regiao_metropolitana', 'uf']], 
-            left_on='CD_MUN', 
-            right_on='cd_mun', 
-            how='inner'
-        )
-        
-        # Filtrar apenas RMs válidas
-        gdf_rm_source = gdf_merged[
-            gdf_merged['regiao_metropolitana'].notna() & 
-            (gdf_merged['regiao_metropolitana'] != '') &
-            (gdf_merged['regiao_metropolitana'] != '-')
-        ].copy()
-        
-        if gdf_rm_source.empty:
-            return None
-            
-        # Dissolver (União das geometrias)
-        # Isso cria o contorno externo limpo da RM
-        gdf_rm_source['count'] = 1
-        gdf_dissolved = gdf_rm_source.dissolve(
-            by=['regiao_metropolitana', 'uf'], 
-            aggfunc={'count': 'sum'}
-        ).reset_index()
-        
-        # Simplificar o RESULTADO (o contorno da RM)
-        # 0.002 ~ 200m de tolerância
-        gdf_dissolved['geometry'] = gdf_dissolved.geometry.simplify(tolerance=0.002, preserve_topology=True)
-        
-        return gdf_dissolved
+        # Carregar GeoJSON pré-processado
+        gdf_rm = gpd.read_file(optimized_rm_geojson_path)
+        return gdf_rm
         
     except Exception as e:
-        st.error(f"Erro ao gerar geometrias de RMs: {e}")
+        logging.error(f"Erro ao carregar RMs otimizadas: {e}")
         return None
 
 
@@ -235,19 +207,22 @@ def get_territorial_graph(df_municipios):
         return None
 
 
-@st.cache_data(show_spinner="Carregando coloração global...", hash_funcs={gpd.GeoDataFrame: id, pd.DataFrame: id})
-def load_or_compute_coloring(gdf):
+@st.cache_data(show_spinner="Carregando coloração pré-calculada...", hash_funcs={gpd.GeoDataFrame: id, pd.DataFrame: id})
+def load_or_compute_coloring(gdf, cache_filename="initial_coloring.json"):
     """
-    Gerencia a coloração global com persistência em arquivo.
+    Carrega a coloração pré-calculada do cache.
     
-    1. Tenta carregar de data/map_coloring_cache.json
-    2. Se não existir, calcula via grafo (demorado)
-    3. Salva o resultado para próximas execuções
+    O cache é gerado pela Etapa 3 do main.py (scripts/s03_precompute_coloring.py).
+    Se o cache não existir, retorna um dicionário vazio e exibe um aviso.
+    
+    Args:
+        gdf: GeoDataFrame (não usado, mantido para compatibilidade)
+        cache_filename: Nome do arquivo de cache ("initial_coloring.json" ou "consolidated_coloring.json")
     
     Returns:
         Dict: mapeamento cd_mun (int) -> color_index (int)
     """
-    cache_path = Path(__file__).parent.parent.parent / "data" / "map_coloring_cache.json"
+    cache_path = Path(__file__).parent.parent.parent / "data" / cache_filename
     
     # Tentar carregar do arquivo
     if cache_path.exists():
@@ -256,43 +231,30 @@ def load_or_compute_coloring(gdf):
                 coloring_str_keys = json.load(f)
                 # JSON chaves são sempre strings, converter para int
                 coloring = {int(k): v for k, v in coloring_str_keys.items()}
-                logging.info(f"Coloração carregada do arquivo: {len(coloring)} municípios")
+                logging.info(f"✅ Coloração carregada do cache: {len(coloring)} municípios")
                 return coloring
         except Exception as e:
-            logging.warning(f"Erro ao ler cache de coloração: {e}")
+            logging.error(f"❌ Erro ao ler cache de coloração: {e}")
+            st.error(f"Erro ao carregar cache de coloração: {e}")
+            return {}
     
-    # Se chegou aqui, precisa calcular
-    if gdf is None or gdf.empty:
-        return {}
-        
-    logging.info("Calculando nova coloração global...")
+    # Cache não existe - avisar usuário
+    logging.warning("⚠️ Cache de coloração não encontrado!")
+    st.warning("""
+    **Cache de coloração não encontrado!**
     
-    # Criar grafo temporário apenas para o cálculo
-    # Não usamos o get_territorial_graph aqui para evitar dependência circular ou overhead
-    temp_graph = TerritorialGraph()
+    Para otimizar o carregamento do dashboard, execute o pipeline completo:
     
-    # Preparar cópia leve para processamento
-    cols = ['utp_id', 'CD_MUN', 'geometry']
-    gdf_for_coloring = gdf[[c for c in cols if c in gdf.columns]].copy()
+    ```bash
+    python main.py
+    ```
     
-    if 'CD_MUN' in gdf_for_coloring.columns:
-        gdf_for_coloring['CD_MUN'] = gdf_for_coloring['CD_MUN'].astype(str)
-        
-    if 'utp_id' in gdf_for_coloring.columns:
-        gdf_for_coloring['UTP_ID'] = gdf_for_coloring['utp_id'].astype(str)
+    Isso irá pré-calcular a coloração e salvar em cache.
+    """)
     
-    # Calcular
-    coloring = temp_graph.compute_graph_coloring(gdf_for_coloring)
-    
-    # Salvar em arquivo
-    try:
-        with open(cache_path, "w") as f:
-            json.dump(coloring, f)
-        logging.info(f"Coloração salva em {cache_path}")
-    except Exception as e:
-        logging.error(f"Erro ao salvar cache de coloração: {e}")
-        
-    return coloring
+    return {}
+
+
 
 
 
@@ -555,18 +517,16 @@ def render_map(gdf_filtered, title="Mapa", global_colors=None, graph=None, gdf_r
     
     if global_colors:
         try:
-            # Mapear cores: cd_mun (int) -> color_idx -> cor hex
-            color_map = {}
-            for _, row in gdf_filtered.iterrows():
+            # Mapear cores diretamente por município (cd_mun -> cor)
+            # A coloração global já considera UTPs vizinhas
+            for idx, row in gdf_filtered.iterrows():
                 try:
                     cd_mun = int(row['CD_MUN'])
-                    # global_colors retorna índice da cor
                     color_idx = global_colors.get(cd_mun, 0) % len(PASTEL_PALETTE)
-                    color_map[row['utp_id']] = PASTEL_PALETTE[color_idx]
+                    gdf_filtered.at[idx, 'color'] = PASTEL_PALETTE[color_idx]
                 except (ValueError, KeyError):
-                    color_map[row['utp_id']] = PASTEL_PALETTE[0]
+                    gdf_filtered.at[idx, 'color'] = PASTEL_PALETTE[0]
             
-            gdf_filtered['color'] = gdf_filtered['utp_id'].map(color_map)
             coloring_applied = True
         except Exception as e:
             logging.warning(f"Erro ao aplicar coloração global: {e}")
@@ -587,25 +547,22 @@ def render_map(gdf_filtered, title="Mapa", global_colors=None, graph=None, gdf_r
             # Calcular coloração usando algoritmo de grafo (Stateless)
             coloring = graph.compute_graph_coloring(gdf_for_coloring)
             
-            # Mapear cores: cd_mun (int) -> color_idx -> cor hex
-            color_map = {}
-            for _, row in gdf_filtered.iterrows():
+            # Mapear cores diretamente por município (cd_mun -> cor)
+            for idx, row in gdf_filtered.iterrows():
                 try:
                     cd_mun = int(row['CD_MUN'])
                     color_idx = coloring.get(cd_mun, 0) % len(PASTEL_PALETTE)
-                    color_map[row['utp_id']] = PASTEL_PALETTE[color_idx]
+                    gdf_filtered.at[idx, 'color'] = PASTEL_PALETTE[color_idx]
                 except (ValueError, KeyError):
-                    color_map[row['utp_id']] = PASTEL_PALETTE[0]
+                    gdf_filtered.at[idx, 'color'] = PASTEL_PALETTE[0]
             
-            gdf_filtered['color'] = gdf_filtered['utp_id'].map(color_map)
-            # logging.info(f"Coloração por grafo aplicada: {len(set(coloring.values()))} cores distintas")
             coloring_applied = True
         
         except Exception as e:
             logging.warning(f"Erro ao aplicar coloração por grafo, usando fallback: {e}")
             
     if not coloring_applied:
-        # Fallback: coloração simples
+        # Fallback: coloração simples por UTP
         utps_unique = gdf_filtered['utp_id'].dropna().unique()
         colors = {utp: PASTEL_PALETTE[i % len(PASTEL_PALETTE)] 
                  for i, utp in enumerate(sorted(utps_unique))}
@@ -864,12 +821,15 @@ def render_dashboard(manager):
     elif selected_utps:
         df_filtered = df_filtered[df_filtered['utp_id'].isin(selected_utps)]
     
-    # Carregar shapefile
-    shapefile_path = Path(__file__).parent.parent.parent / "data" / "01_raw" / "shapefiles" / "BR_Municipios_2024.shp"
-    gdf = get_geodataframe(shapefile_path, df_municipios)
     
-    # Gerar geometrias de RMs a partir dos municípios (usando shapefile bruto para evitar buracos)
-    gdf_rm = get_derived_rm_geodataframe(shapefile_path, df_municipios)
+    # Carregar GeoDataFrames otimizados (gerados pelo pipeline main.py)
+    maps_dir = Path(__file__).parent.parent.parent / "data" / "04_maps"
+    optimized_municipalities_path = maps_dir / "municipalities_optimized.geojson"
+    optimized_rm_path = maps_dir / "rm_boundaries_optimized.geojson"
+    
+    gdf = get_geodataframe(optimized_municipalities_path, df_municipios)
+    gdf_rm = get_derived_rm_geodataframe(optimized_rm_path)
+
     
     # 1. Preparar DataFrame limpo para o grafo (sem dicts para evitar erro de hash)
     # Selecionamos apenas as colunas necessárias para a estrutura topológica
@@ -880,8 +840,8 @@ def render_dashboard(manager):
     graph = get_territorial_graph(df_topology)
     
     # 2. Carregar ou calcular coloração GLOBAL (Persistente em arquivo)
-    # Isso é feito apenas uma vez por projeto (salvo em disco)
-    global_colors = load_or_compute_coloring(gdf) if gdf is not None else {}
+    # ATENÇÃO: Carregamos aqui a INITIAL por padrão, mas cada tab pode pedir a sua
+    global_colors_initial = load_or_compute_coloring(gdf, "initial_coloring.json") if gdf is not None else {}
     
     # === TABS ===
     tab1, tab2, tab3, tab4 = st.tabs([
@@ -924,7 +884,7 @@ def render_dashboard(manager):
             st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_filtered)} Municípios")
             
             # Renderizar mapa com opção de mostrar contornos de RM
-            render_map(gdf_filtered, title="Distribuição por UTP", global_colors=global_colors, 
+            render_map(gdf_filtered, title="Distribuição por UTP", global_colors=global_colors_initial, 
                        gdf_rm=gdf_rm, show_rm_borders=show_rm_borders)
         
         st.markdown("---")
@@ -1030,8 +990,12 @@ def render_dashboard(manager):
                 
                 st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_consolidated)} Municípios")
                 
+                # Calcular coloração CONSOLIDADA sobre o frame consolidado
+                colors_consolidated = load_or_compute_coloring(gdf_consolidated, "consolidated_coloring.json")
+                
                 # Renderizar mapa com opção de mostrar contornos de RM
                 render_map(gdf_consolidated, title="Distribuição Consolidada", graph=graph,
+                          global_colors=colors_consolidated,
                           gdf_rm=gdf_rm, show_rm_borders=show_rm_borders_tab2)
             
             st.markdown("---")
@@ -1438,7 +1402,7 @@ def render_dashboard(manager):
                     
                     # Obter índice de coloração topológica (0-4)
                     # Isso garante que UTPs vizinhas tenham índices diferentes
-                    color_idx = global_colors.get(cd_mun, 0)
+                    color_idx = global_colors_initial.get(cd_mun, 0)
                     palette_idx = color_idx % 5
                     
                     if row['uf'] != sede_uf:
@@ -1487,18 +1451,23 @@ def render_dashboard(manager):
                 # Adicionar Contorno das UTPs (Preto)
                 try:
                     # Preparar geometria para dissolver
-                    # buffer(0.001) ~110m expande para fechar buracos/frestas entre municípios
-                    # Depois fazemos buffer negativo para voltar ao tamanho original
-                    epsilon = 0.001
-                    gdf_to_dissolve = gdf_inter.copy()
-                    gdf_to_dissolve['geometry'] = gdf_to_dissolve.geometry.buffer(epsilon)
+                    # Usar projeção métrica para buffer mais preciso (3857 ou 5880) e evitar warning
+                    # 100 metros de tolerância para fechar buracos
                     
-                    # Dissolver por UTP para obter contorno externo fundido
-                    gdf_dissolved = gdf_to_dissolve.dissolve(by='utp_id')
+                    # 1. Projetar para CRS métrico (EPSG:3857 - Pseudo-Mercator é rápido e suficiente aqui)
+                    gdf_metric = gdf_inter.to_crs(epsg=3857)
                     
-                    # Restaurar tamanho original (contrair o que expandimos)
-                    gdf_utp_outlines = gdf_dissolved.copy()
-                    gdf_utp_outlines['geometry'] = gdf_dissolved.geometry.buffer(-epsilon)
+                    # 2. Buffer positivo (expandir) em metros
+                    gdf_metric['geometry'] = gdf_metric.geometry.buffer(200)
+                    
+                    # 3. Dissolver por UTP
+                    gdf_dissolved_metric = gdf_metric.dissolve(by='utp_id')
+                    
+                    # 4. Buffer negativo (contrair) em metros para restaurar forma
+                    gdf_dissolved_metric['geometry'] = gdf_dissolved_metric.geometry.buffer(-200)
+                    
+                    # 5. Projetar de volta para WGS84 (Folium)
+                    gdf_utp_outlines = gdf_dissolved_metric.to_crs(epsg=4326).reset_index()
                     gdf_utp_outlines = gdf_utp_outlines.reset_index()
                     
                     folium.GeoJson(

@@ -9,8 +9,9 @@ import logging
 from src.config import setup_logging
 
 # Importar ferramentas
-from data.create_initialization_json_v2 import main as initialize_data
+from scripts.s01_create_initialization import main as initialize_data
 from src.run_consolidation import run_consolidation
+from scripts.s03_precompute_coloring import main as precompute_coloring
 
 # Configurar logger
 logger = setup_logging()
@@ -42,6 +43,32 @@ def run_pipeline():
     except Exception as e:
         logger.error(f"❌ Erro crítico na consolidação: {e}")
         return False
+    
+    # 3. Pré-calcular Coloração de Grafos
+    logger.info("\n>>> ETAPA 3: PRÉ-CÁLCULO DE COLORAÇÃO DE GRAFOS <<<")
+    try:
+        result = precompute_coloring()
+        if result == 0:
+            logger.info("✅ Pré-cálculo de coloração concluído.")
+        else:
+            logger.warning("⚠️ Erro no pré-cálculo de coloração (não crítico).")
+            # Não retornar False aqui, pois isso não impede o uso do sistema
+    except Exception as e:
+        logger.warning(f"⚠️ Erro no pré-cálculo de coloração: {e}")
+        logger.info("   (O dashboard poderá calcular a coloração sob demanda)")
+    
+    # 4. Pré-processar GeoDataFrames
+    logger.info("\n>>> ETAPA 4: PRÉ-PROCESSAMENTO DE GEODATAFRAMES <<<")
+    try:
+        from scripts.s05_preprocess_geodataframes import main as preprocess_geodataframes
+        result = preprocess_geodataframes()
+        if result == 0:
+            logger.info("✅ Pré-processamento de GeoDataFrames concluído.")
+        else:
+            logger.warning("⚠️ Erro no pré-processamento (não crítico).")
+    except Exception as e:
+        logger.warning(f"⚠️ Erro no pré-processamento: {e}")
+        logger.info("   (O dashboard poderá processar os shapefiles sob demanda)")
         
     logger.info("\n" + "*" * 80)
     logger.info("✅ PIPELINE COMPLETO FINALIZADO COM SUCESSO")
