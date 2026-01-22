@@ -30,6 +30,19 @@ def run_pipeline():
     except Exception as e:
         logger.error(f"❌ Falha na inicialização de dados: {e}")
         return False
+    
+    # 1.5 Enriquecer com dados socioeconômicos e turismo
+    logger.info("\n>>> ETAPA 1.5: ENRIQUECIMENTO COM DADOS SOCIOECONÔMICOS <<<")
+    try:
+        from scripts.s04_enrich_initialization import main as enrich_data
+        result = enrich_data()
+        if result == 0:
+            logger.info("✅ Enriquecimento de dados concluído.")
+        else:
+            logger.warning("⚠️ Erro no enriquecimento (não crítico).")
+    except Exception as e:
+        logger.warning(f"⚠️ Erro no enriquecimento: {e}")
+        logger.info("   (Alguns dados socioeconômicos podem estar ausentes)")
         
     # 2. Executar Consolidação
     logger.info("\n>>> ETAPA 2: PROCESSAMENTO E CONSOLIDAÇÃO <<<")

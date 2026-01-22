@@ -145,69 +145,6 @@ def render_socioeconomic_charts(df: pd.DataFrame) -> None:
     st.plotly_chart(fig_pop, width='stretch')
 
 
-def render_flow_matrix(df_raw: pd.DataFrame, top_n: int = 15) -> None:
-    """
-    Renderiza heatmap de fluxos principais entre sedes.
-    
-    Args:
-        df_raw: DataFrame bruto com informações de fluxo
-        top_n: Número de principais sedes a incluir
-    """
-    if df_raw.empty:
-        return
-    
-    st.markdown("#### Matriz de Fluxos Principais entre Sedes")
-    
-    # Selecionar top N sedes por população
-    df_top = df_raw.nlargest(top_n, 'População')[['Sede', 'Principal Destino', 'Fluxo (%)']].copy()
-    
-    # Criar matriz pivot
-    # Vamos criar uma visualização simplificada mostrando os principais fluxos
-    
-    # Lista de sedes únicas
-    sedes = df_top['Sede'].unique().tolist()
-    
-    # Criar matriz zerada
-    matrix = pd.DataFrame(0, index=sedes, columns=sedes)
-    
-    # Preencher com fluxos conhecidos
-    for _, row in df_top.iterrows():
-        origem = row['Sede']
-        destino = row['Principal Destino']
-        fluxo = row['Fluxo (%)']
-        
-        # Só preencher se o destino também estiver no top N
-        if destino in sedes:
-            matrix.loc[origem, destino] = fluxo
-    
-    # Criar heatmap
-    fig_heatmap = go.Figure(data=go.Heatmap(
-        z=matrix.values,
-        x=matrix.columns,
-        y=matrix.index,
-        colorscale='YlOrRd',
-        text=matrix.values.round(1),
-        texttemplate='%{text}%',
-        textfont={"size": 10},
-        hovertemplate='Origem: %{y}<br>Destino: %{x}<br>Fluxo: %{z:.1f}%<extra></extra>',
-        colorbar=dict(title='Fluxo (%)')
-    ))
-    
-    fig_heatmap.update_layout(
-        xaxis_title='Destino',
-        yaxis_title='Origem',
-        height=600,
-        margin=dict(l=150, r=10, t=30, b=100),
-        xaxis={'side': 'bottom'},
-        yaxis={'autorange': 'reversed'}
-    )
-    
-    fig_heatmap.update_xaxes(tickangle=45)
-    
-    st.plotly_chart(fig_heatmap, width='stretch')
-    
-    st.caption("**Nota:** Valores representam a % do fluxo total da sede de origem que vai para o destino indicado. Apenas os principais fluxos são mostrados.")
-
 
 def render_regic_distribution(df: pd.DataFrame) -> None:
     """
@@ -355,3 +292,135 @@ def render_origin_destination_table(df: pd.DataFrame, show_alerts_only: bool = F
     - **Razão \u003e 1**: Destino é mais populoso que origem
     - **Razão \u003c 1**: Origem é mais populosa que destino
     """)
+
+
+def render_comprehensive_table(df: pd.DataFrame, show_alerts_only: bool = False) -> None:
+    """
+    Renderiza tabela comparativa COMPLETA no formato origem-destino.
+    
+    Suporta mais de 70 colunas de indicadores socioeconômicos.
+    
+    Args:
+        df: DataFrame com dados origem-destino (do export_comprehensive_dependency_table)
+        show_alerts_only: Se True, mostra apenas pares com alerta
+    """
+    if df.empty:
+        st.info("Nenhuma relação origem-destino detectada.")
+        return
+    
+    df_display = df.copy()
+    
+    # Filtrar apenas alertas se solicitado
+    if show_alerts_only:
+        # Verifica qual coluna de alerta existe
+        if 'ALERTA_DEPENDENCIA' in df_display.columns:
+            # Filtrar por string não vazia (contém emoji ou texto "SIM")
+            df_display = df_display[df_display['ALERTA_DEPENDENCIA'].astype(str).str.len() > 0]
+        elif 'Alerta' in df_display.columns:
+            df_display = df_display[df_display['Alerta'] == 'SIM']
+            
+        if df_display.empty:
+            st.success("Nenhum alerta de dependência detectado!")
+            return
+    
+    # Exibir contagem
+    st.caption(f"**{len(df_display)} relações origem-destino** (ordenadas por % de fluxo)")
+    
+    # Configuração de colunas mapeada para melhor visualização
+    column_config = {
+        # --- Identificação (Fixa) ---
+        'nome_municipio_origem': st.column_config.TextColumn('🔵 Origem', width='medium'),
+        'nome_municipio_destino': st.column_config.TextColumn('🟢 Destino', width='medium'),
+        'UTP_ORIGEM': st.column_config.TextColumn('UTP Orig.', width='small'),
+        'UTP_DESTINO': st.column_config.TextColumn('UTP Dest.', width='small'),
+        'UF_ORIGEM': st.column_config.TextColumn('UF Orig.', width='small'),
+        'UF_DESTINO': st.column_config.TextColumn('UF Dest.', width='small'),
+        
+        # --- Relação ---
+        'proporcao_fluxo_pct': st.column_config.ProgressColumn(
+            'Fluxo (%)', 
+            format='%.1f%%', 
+            min_value=0, 
+            max_value=100,
+            help='Proporção de viagens da origem para o destino'
+        ),
+        'qtd_viagens': st.column_config.NumberColumn('Viagens', format='%d'), # Viagens específicas Origem->Destino
+        'Tempo': st.column_config.NumberColumn('Tempo (h)', format='%.2f'),
+        'ALERTA_DEPENDENCIA': st.column_config.TextColumn('Alerta', help='Indicador de dependência crítica'),
+        'observacao': st.column_config.TextColumn('Obs.', width='large'),
+        
+        # --- População ---
+        'PopulacaoSede_Origem': st.column_config.NumberColumn('🔵 Pop. Sede', format='%d'),
+        'PopulacaoSede_Destino': st.column_config.NumberColumn('🟢 Pop. Sede', format='%d'),
+        
+        # --- Aeroporto ---
+        'AeroportoICAO_Origem': st.column_config.TextColumn('🔵 Aero', width='small'),
+        'AeroportoICAO_Destino': st.column_config.TextColumn('🟢 Aero', width='small'),
+        'AeroportoPassageiros_Origem': st.column_config.NumberColumn('🔵 Pax Aero', format='%d'),
+        'AeroportoPassageiros_Destino': st.column_config.NumberColumn('🟢 Pax Aero', format='%d'),
+        
+        # --- Turismo ---
+        'ClassificacaoTurismo_Origem': st.column_config.TextColumn('🔵 Turismo', width='small'),
+        'ClassificacaoTurismo_Destino': st.column_config.TextColumn('🟢 Turismo', width='small'),
+        'RegiaoTuristica_Origem': st.column_config.TextColumn('🔵 Reg. Tur.', width='small'),
+        'RegiaoTuristica_Destino': st.column_config.TextColumn('🟢 Reg. Tur.', width='small'),
+        
+        # --- Economia ---
+        'RendaPerCapita_Origem': st.column_config.NumberColumn('🔵 Índice Renda PC', format='%.2f'),
+        'RendaPerCapita_Destino': st.column_config.NumberColumn('🟢 Índice Renda PC', format='%.2f'),
+        'ICE_R_Origem': st.column_config.NumberColumn('🔵 ICE-R', format='%.2f'),
+        'ICE_R_Destino': st.column_config.NumberColumn('🟢 ICE-R', format='%.2f'),
+        
+        # --- Saúde ---
+        'Medicos100MilHab_Origem': st.column_config.NumberColumn('🔵 Méd./100k', format='%.1f'),
+        'Medicos100MilHab_Destino': st.column_config.NumberColumn('🟢 Méd./100k', format='%.1f'),
+        'Leitos100MilHab_Origem': st.column_config.NumberColumn('🔵 Leitos/100k', format='%.1f'),
+        'Leitos100MilHab_Destino': st.column_config.NumberColumn('🟢 Leitos/100k', format='%.1f'),
+        
+        # --- Conectividade ---
+        'Cobertura4G_Origem': st.column_config.NumberColumn('🔵 4G (%)', format='%.1f%%'),
+        'Cobertura4G_Destino': st.column_config.NumberColumn('🟢 4G (%)', format='%.1f%%'),
+        'DensidadeBandaLarga_Origem': st.column_config.NumberColumn('🔵 Band. Larg.', format='%.1f'),
+        'DensidadeBandaLarga_Destino': st.column_config.NumberColumn('🟢 Band. Larg.', format='%.1f'),
+    }
+    
+    # Seleção de colunas para exibir (ordem lógica)
+    cols_to_show = [
+        'nome_municipio_origem', 'nome_municipio_destino', 
+        'proporcao_fluxo_pct', 'qtd_viagens', 'Tempo', 'ALERTA_DEPENDENCIA',
+        
+        'UF_ORIGEM', 'UF_DESTINO',
+        'UTP_ORIGEM', 'UTP_DESTINO',
+        
+        'PopulacaoSede_Origem', 'PopulacaoSede_Destino',
+        
+        'ClassificacaoTurismo_Origem', 'ClassificacaoTurismo_Destino',
+        'RegiaoTuristica_Origem', 'RegiaoTuristica_Destino',
+        
+        'AeroportoICAO_Origem', 'AeroportoICAO_Destino',
+        
+        'RendaPerCapita_Origem', 'RendaPerCapita_Destino',
+        'ICE_R_Origem', 'ICE_R_Destino',
+        
+        'Medicos100MilHab_Origem', 'Medicos100MilHab_Destino',
+        'Cobertura4G_Origem', 'Cobertura4G_Destino'
+    ]
+    
+    # Filtrar apenas colunas que existem no DF
+    cols_existing = [c for c in cols_to_show if c in df_display.columns]
+    
+    # Adicionar observação se existir
+    if 'observacao' in df_display.columns:
+        cols_existing.append('observacao')
+        
+    st.dataframe(
+        df_display[cols_existing],
+        width='stretch',
+        hide_index=True,
+        column_config=column_config,
+        height=600
+    )
+    
+    with st.expander("Ver todas as colunas disponíveis (Tabela Bruta)"):
+        st.dataframe(df_display, use_container_width=True)
+

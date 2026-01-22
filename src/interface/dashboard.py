@@ -1127,10 +1127,7 @@ def render_dashboard(manager):
             """
             Carrega análise de dependências do JSON pré-processado.
             
-            Este método carrega resultados da análise que foram salvos quando o pipeline
-            foi executado, resultando em carregamento ~100x mais rápido que recalcular.
-            
-            Se o cache não existir, executa a análise como fallback.
+            Retorna a tabela completa de origem-destino se disponível.
             """
             cache_file = Path(__file__).parent.parent.parent / "data" / "sede_analysis_cache.json"
             
@@ -1144,14 +1141,20 @@ def render_dashboard(manager):
                     # Reconstruir DataFrame do JSON
                     df_raw = pd.DataFrame(data['sede_analysis'])
                     
-                    # Criar SedeAnalyzer temporário apenas para formatar tabela
+                    # Carregar tabela completa se existir
+                    df_comprehensive = pd.DataFrame()
+                    if 'comprehensive_dependency_table' in data:
+                        df_comprehensive = pd.DataFrame(data['comprehensive_dependency_table'])
+                        logging.info(f"✅ Tabela completa carregada do cache: {len(df_comprehensive)} linhas")
+                    
+                    # Criar SedeAnalyzer temporário apenas para formatar tabela simples
                     analyzer = SedeAnalyzer()
                     analyzer.df_sede_analysis = df_raw
                     df_display = analyzer.export_sede_comparison_table()
                     
                     logging.info(f"✅ Análise carregada do cache: {len(df_raw)} sedes")
                     
-                    return data['summary'], df_display, df_raw
+                    return data['summary'], df_display, df_raw, df_comprehensive
                     
                 except Exception as e:
                     logging.warning(f"⚠️ Erro ao carregar cache, executando análise: {e}")
@@ -1163,13 +1166,16 @@ def render_dashboard(manager):
             
             if summary.get('success'):
                 df_table = analyzer.export_sede_comparison_table()
-                return summary, df_table, analyzer.df_sede_analysis
+                # Tentar gerar tabela completa
+                df_comp = analyzer.export_comprehensive_dependency_table()
+                return summary, df_table, analyzer.df_sede_analysis, df_comp
             else:
-                return summary, pd.DataFrame(), pd.DataFrame()
+                return summary, pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         
         # Carregar análise (do cache ou executar fallback)
+        # Carregar análise (do cache ou executar fallback)
         try:
-            summary, df_display, df_raw = load_sede_analysis_from_cache()
+            summary, df_display, df_raw, df_comprehensive = load_sede_analysis_from_cache()
             
             if summary.get('success'):
                 # === MÉTRICAS GERAIS ===
@@ -1179,29 +1185,25 @@ def render_dashboard(manager):
                     st.metric("Total de Sedes", summary['total_sedes'])
                 
                 with col2:
-                    alert_count = summary['total_alertas']
-                    st.metric("Alertas", alert_count, 
-                             delta="Dependências" if alert_count > 0 else "Nenhum",
-                             delta_color="inverse")
+                    st.metric("Alertas de Dependência", summary['total_alertas'])
                 
                 with col3:
                     st.metric("População Total", f"{summary['populacao_total']:,}")
                 
                 with col4:
-                    st.metric("Com Aeroporto", summary['sedes_com_aeroporto'])
+                    st.metric("Sedes com Aeroporto", summary['sedes_com_aeroporto'])
                 
                 st.markdown("---")
                 
-                # === ALERTAS DE DEPENDÊNCIA ===
-                st.markdown("#### Alertas de Dependência Funcional")
-                st.caption("Sedes cujo principal fluxo vai para outra sede a até 2h de distância")
-                
+                # === ALERTAS ===
                 sede_comparison.render_dependency_alerts(df_display)
+                
+
                 
                 st.markdown("---")
                 
                 # === FILTROS E TABELA ===
-                st.markdown("#### Tabela Comparativa de Sedes")
+                st.markdown("#### Tabela Comparativa de Sedes (Expandida)")
                 
                 # Filtros acima da tabela
                 col_filter1, col_filter2, col_filter3, col_filter4 = st.columns(4)
@@ -1211,7 +1213,7 @@ def render_dashboard(manager):
                     view_mode = st.radio(
                         "Modo de Visualização",
                         ["Individual", "Origem-Destino"],
-                        help="Individual: uma linha por sede. Origem-Destino: pares comparativos lado a lado"
+                        help="Individual: dados básicos. Origem-Destino: tabela completa expandida"
                     )
                 
                 with col_filter2:
@@ -1228,31 +1230,44 @@ def render_dashboard(manager):
                 
                 # Renderizar tabela conforme modo selecionado
                 if view_mode == "Origem-Destino":
-                    # Gerar dados origem-destino
-                    analyzer = SedeAnalyzer(consolidation_loader=consolidation_loader)
-                    # Reutilizar análise já feita
-                    analyzer.df_sede_analysis = df_raw
-                    df_origin_dest = analyzer.export_origin_destination_comparison()
+                    # Usar dados abrangentes se disponíveis, senão calcular
+                    if not df_comprehensive.empty:
+                        df_origin_dest = df_comprehensive
+                    else:
+                        # Fallback: recalcular se não estiver no cache
+                        analyzer = SedeAnalyzer(consolidation_loader=consolidation_loader)
+                        analyzer.df_sede_analysis = df_raw
+                        df_origin_dest = analyzer.export_comprehensive_dependency_table()
                     
                     # Aplicar filtros ao dataframe origem-destino
                     df_filtered_od = df_origin_dest.copy()
                     
                     if selected_regic != 'Todos':
-                        # Filtrar por REGIC de origem OU destino
-                        mask = (df_filtered_od['Origem_REGIC'] == selected_regic) | (df_filtered_od['Destino_REGIC'] == selected_regic)
+                        # Filtrar por REGIC de origem OU destino (usando novos nomes de coluna)
+                        # Nota: Verifica se colunas existem antes de filtrar para evitar erro em dados mistos
+                        col_orig = 'REGIC_ORIGEM' if 'REGIC_ORIGEM' in df_filtered_od.columns else 'Origem_REGIC'
+                        col_dest = 'REGIC_DESTINO' if 'REGIC_DESTINO' in df_filtered_od.columns else 'Destino_REGIC'
+                        
+                        mask = (df_filtered_od[col_orig] == selected_regic) | (df_filtered_od[col_dest] == selected_regic)
                         df_filtered_od = df_filtered_od[mask]
                     
                     if filter_airport == "Apenas com aeroporto":
+                        col_orig = 'Aeroporto_Origem' if 'Aeroporto_Origem' in df_filtered_od.columns else 'Origem_Aeroporto'
+                        col_dest = 'Aeroporto_Destino' if 'Aeroporto_Destino' in df_filtered_od.columns else 'Destino_Aeroporto'
+                        
                         # Filtrar onde origem OU destino tem aeroporto
-                        mask = (df_filtered_od['Origem_Aeroporto'] == 'Sim') | (df_filtered_od['Destino_Aeroporto'] == 'Sim')
+                        mask = (df_filtered_od[col_orig] == 'Sim') | (df_filtered_od[col_dest] == 'Sim')
                         df_filtered_od = df_filtered_od[mask]
                     elif filter_airport == "Sem aeroporto":
+                        col_orig = 'Aeroporto_Origem' if 'Aeroporto_Origem' in df_filtered_od.columns else 'Origem_Aeroporto'
+                        col_dest = 'Aeroporto_Destino' if 'Aeroporto_Destino' in df_filtered_od.columns else 'Destino_Aeroporto'
+                        
                         # Filtrar onde AMBOS não têm aeroporto
-                        mask = (df_filtered_od['Origem_Aeroporto'] == '') & (df_filtered_od['Destino_Aeroporto'] == '')
+                        mask = (df_filtered_od[col_orig] == '') & (df_filtered_od[col_dest] == '')
                         df_filtered_od = df_filtered_od[mask]
                     
-                    # Renderizar tabela origem-destino
-                    sede_comparison.render_origin_destination_table(df_filtered_od, show_alerts_only)
+                    # Renderizar tabela COMPLETA origem-destino
+                    sede_comparison.render_comprehensive_table(df_filtered_od, show_alerts_only)
                     
                     # Usar df_display original para gráficos (não filtramos no modo origem-destino)
                     df_filtered_display = df_display.copy()

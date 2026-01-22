@@ -139,7 +139,7 @@ class SedeAnalyzer:
             self.logger.error(f"Erro ao carregar matriz de impedância: {e}")
             return False
     
-    def get_main_flow_destination(self, cd_mun_origem: int) -> Tuple[Optional[int], float, int]:
+    def get_main_flow_destination(self, cd_mun_origem: int) -> Tuple[Optional[int], float, int, int]:
         """
         Identifica o principal destino de fluxo para um município origem.
         
@@ -147,10 +147,10 @@ class SedeAnalyzer:
             cd_mun_origem: Código IBGE do município de origem
             
         Returns:
-            Tupla com (cd_mun_destino, proporcao_fluxo, total_viagens)
+            Tupla com (cd_mun_destino, proporcao_fluxo, total_viagens, viagens_para_destino)
         """
         if self.df_municipios is None:
-            return None, 0.0, 0
+            return None, 0.0, 0, 0
         
         # Buscar município
         mun = self.df_municipios[self.df_municipios['cd_mun'] == cd_mun_origem]
@@ -172,15 +172,15 @@ class SedeAnalyzer:
                     total_viagens += viagens
         
         if not flows_by_dest or total_viagens == 0:
-            return None, 0.0, 0
+            return None, 0.0, 0, 0
         
         # Encontrar destino com maior fluxo
         max_dest = max(flows_by_dest.items(), key=lambda x: x[1])
         cd_mun_destino = max_dest[0]
-        viagens = max_dest[1]
-        proporcao = viagens / total_viagens
+        viagens_para_destino = max_dest[1]  # Número de viagens para este destino específico
+        proporcao = viagens_para_destino / total_viagens
         
-        return cd_mun_destino, proporcao, total_viagens
+        return cd_mun_destino, proporcao, total_viagens, viagens_para_destino
     
     def get_travel_time(self, cd_origem: int, cd_destino: int) -> Optional[float]:
         """
@@ -244,7 +244,7 @@ class SedeAnalyzer:
             Dict com informações do alerta, ou None se não há dependência
         """
         # 1. Obter principal destino
-        cd_destino, proporcao, total_viagens = self.get_main_flow_destination(cd_sede_origem)
+        cd_destino, proporcao, total_viagens, viagens_para_destino = self.get_main_flow_destination(cd_sede_origem)
         
         if cd_destino is None:
             return None
@@ -272,6 +272,7 @@ class SedeAnalyzer:
             'utp_destino': mun_destino['utp_id'],
             'proporcao_fluxo': proporcao,
             'total_viagens': total_viagens,
+            'viagens_para_destino': viagens_para_destino,
             'tempo_horas': tempo,
             'alerta': 'DEPENDÊNCIA FUNCIONAL DETECTADA'
         }
@@ -302,12 +303,12 @@ class SedeAnalyzer:
             pop_total = municipios_utp['populacao_2022'].sum()
             num_municipios = len(municipios_utp)
             
-            # Agregar viagens totais da UTP (soma de todos os modais de todos os municípios)
-            total_viagens_utp = 0
-            for _, mun in municipios_utp.iterrows():
-                modais = mun.get('modais', {})
-                if isinstance(modais, dict):
-                    total_viagens_utp += sum(modais.values())
+            # Obter viagens apenas da sede (não de toda a UTP)
+            # Isso garante que a análise de dependências mostre viagens sede-a-sede
+            modais_sede = sede.get('modais', {})
+            total_viagens_sede = 0
+            if isinstance(modais_sede, dict):
+                total_viagens_sede = sum(modais_sede.values())
             
             # Verificar se a sede possui aeroporto comercial
             # Extrair dados completos do aeroporto quando disponível
@@ -336,7 +337,7 @@ class SedeAnalyzer:
                 turismo_classificacao = ''
             
             # Obter principal destino da sede (para onde mais viajam seus habitantes)
-            cd_destino, prop_fluxo, viagens_sede = self.get_main_flow_destination(cd_mun)
+            cd_destino, prop_fluxo, viagens_sede, viagens_para_destino = self.get_main_flow_destination(cd_mun)
             
             # Obter nome do destino principal e tempo de viagem
             nm_destino = ''
@@ -351,27 +352,85 @@ class SedeAnalyzer:
             # (sede depende de outra sede a até 2h de distância)
             alerta = self.check_dependency_criteria(cd_mun)
             
-            metrics_list.append({
+            # Criar dicionário base com campos essenciais
+            sede_metrics = {
+                # Identificação
                 'utp_id': utp_id,
                 'cd_mun_sede': cd_mun,
+                'cd_mun_6dig': str(cd_mun)[:6] if len(str(cd_mun)) > 6 else str(cd_mun),
                 'nm_sede': sede['nm_mun'],
                 'uf': sede['uf'],
                 'regic': sede.get('regic', ''),
                 'regiao_metropolitana': sede.get('regiao_metropolitana', ''),
+                
+                # População e área
                 'populacao_total_utp': int(pop_total),
-                'num_municipios': num_municipios,  # Quantidade de municípios nesta UTP
-                'total_viagens': total_viagens_utp,
+                'populacao_sede': int(sede.get('populacao_2022', 0)),
+                'area_km2': sede.get('area_km2'),
+                'num_municipios': num_municipios,
+                
+                # Viagens
+                'total_viagens': total_viagens_sede,
+                
+                # Aeroporto
                 'tem_aeroporto': tem_aeroporto,
                 'aeroporto_icao': aeroporto_icao,
                 'aeroporto_passageiros': aeroporto_passageiros,
+                'aeroportos_100km': sede.get('aeroportos_100km'),
+                'aeroportos_internacionais_100km': sede.get('aeroportos_internacionais_100km'),
+                
+                # Turismo
                 'turismo': turismo_classificacao,
+                'regiao_turistica': sede.get('regiao_turistica', ''),
+                'densidade_leitos_hospedagem': sede.get('densidade_leitos_hospedagem'),
+                'densidade_estabelecimentos_hospedagem': sede.get('densidade_estabelecimentos_hospedagem'),
+                'avaliacao_media_hospedagem': sede.get('avaliacao_media_hospedagem'),
+                'avaliacao_media_restaurante': sede.get('avaliacao_media_restaurante'),
+                'estabelecimentos_turismo_mil_hab': sede.get('estabelecimentos_turismo_mil_hab'),
+                'ocupacoes_turismo_mil_hab': sede.get('ocupacoes_turismo_mil_hab'),
+                'quociente_locacional_turismo': sede.get('quociente_locacional_turismo'),
+                'demanda_turistica': sede.get('demanda_turistica'),
+                'passageiros_onibus_turismo': sede.get('passageiros_onibus_turismo'),
+                
+                # Infraestrutura de transporte
+                'rodoviarias': sede.get('rodoviarias'),
+                
+                # Economia
+                'estabelecimentos_formais_mil_hab': sede.get('estabelecimentos_formais_mil_hab'),
+                'ocupacoes_formais_mil_hab': sede.get('ocupacoes_formais_mil_hab'),
+                'renda_per_capita': sede.get('renda_per_capita'),
+                'remuneracao_media': sede.get('remuneracao_media'),
+                'ice_r': sede.get('ice_r'),
+                
+                # Recursos naturais e culturais
+                'area_conservacao_ambiental_pct': sede.get('area_conservacao_ambiental_pct'),
+                'densidade_patrimonio_cultural': sede.get('densidade_patrimonio_cultural'),
+                
+                # Conectividade
+                'cobertura_4g_pct': sede.get('cobertura_4g_pct'),
+                'cobertura_5g_pct': sede.get('cobertura_5g_pct'),
+                'densidade_banda_larga': sede.get('densidade_banda_larga'),
+                
+                # Saúde
+                'medicos_100mil_hab': sede.get('medicos_100mil_hab'),
+                'leitos_hospitalares_100mil_hab': sede.get('leitos_hospitalares_100mil_hab'),
+                'estabelecimentos_saude_100mil_hab': sede.get('estabelecimentos_saude_100mil_hab'),
+                'leitos_uti_100mil_hab': sede.get('leitos_uti_100mil_hab'),
+                
+                # Segurança
+                'taxa_homicidios_100mil_hab': sede.get('taxa_homicidios_100mil_hab'),
+                
+                # Fluxo e dependência
                 'principal_destino_cd': cd_destino,
                 'principal_destino_nm': nm_destino,
                 'proporcao_fluxo_principal': prop_fluxo,
+                'viagens_para_destino': viagens_para_destino if cd_destino is not None else 0,
                 'tempo_ate_destino_h': tempo_destino,
                 'tem_alerta_dependencia': alerta is not None,
                 'alerta_detalhes': alerta
-            })
+            }
+            
+            metrics_list.append(sede_metrics)
         
         self.df_sede_analysis = pd.DataFrame(metrics_list)
         return self.df_sede_analysis
@@ -575,6 +634,144 @@ class SedeAnalyzer:
         
         return df_comparison
     
+    def export_comprehensive_dependency_table(self) -> pd.DataFrame:
+        """
+        Exporta tabela COMPLETA de análise de dependências no formato origem-destino.
+        
+        Inclui TODOS os indicadores socioeconômicos disponíveis para análises detalhadas.
+        Formato: id_ibge_origem, nome_municipio_origem, UTP_ORIGEM, id_ibge_destino,
+        nome_municipio_destino, UTP_DESTINO, qtd_viagens, Tempo, + 100+ indicadores
+        
+        Returns:
+            DataFrame com análise completa origem-destino
+        """
+        if self.df_sede_analysis is None:
+            return pd.DataFrame()
+        
+        df_with_destinations = self.df_sede_analysis.copy()
+        comprehensive_data = []
+        
+        for _, row_origem in df_with_destinations.iterrows():
+            cd_destino = row_origem['principal_destino_cd']
+            
+            if pd.isna(cd_destino):
+                continue
+            
+            row_destino = df_with_destinations[
+                df_with_destinations['cd_mun_sede'] == cd_destino
+            ]
+            
+            if row_destino.empty:
+                continue
+            
+            row_destino = row_destino.iloc[0]
+            mesma_utp = row_origem['utp_id'] == row_destino['utp_id']
+            
+            # Criar linha completa com TODOS os dados
+            comprehensive_row = {
+                # Identificação
+                'id_ibge_origem': int(row_origem['cd_mun_sede']),
+                'id_origem_6dig': row_origem['cd_mun_6dig'],
+                'nome_municipio_origem': row_origem['nm_sede'],
+                'UTP_ORIGEM': row_origem['utp_id'],
+                'SEDE_ORIGEM': True,
+                'UF_ORIGEM': row_origem['uf'],
+                'REGIC_ORIGEM': row_origem['regic'] if row_origem['regic'] else '',
+                'id_ibge_destino': int(row_destino['cd_mun_sede']),
+                'id_destino_6dig': row_destino['cd_mun_6dig'],
+                'nome_municipio_destino': row_destino['nm_sede'],
+                'UTP_DESTINO': row_destino['utp_id'],
+                'SEDE_DESTINO': True,
+                'UF_DESTINO': row_destino['uf'],
+                'REGIC_DESTINO': row_destino['regic'] if row_destino['regic'] else '',
+                
+                # Relação/Fluxo
+                'qtd_viagens': int(row_origem['viagens_para_destino']),
+                'total_viagens_origem': int(row_origem['total_viagens']),
+                'proporcao_fluxo_pct': round(row_origem['proporcao_fluxo_principal'] * 100, 2),
+                'Tempo': round(row_origem['tempo_ate_destino_h'], 2) if pd.notna(row_origem['tempo_ate_destino_h']) else None,
+                'MESMA_UTP_FLAG': mesma_utp,
+                'ALERTA_DEPENDENCIA': '⚠️ SIM' if row_origem['tem_alerta_dependencia'] else '',
+                
+                # População
+                'PopulacaoUTP_Origem': int(row_origem['populacao_total_utp']),
+                'PopulacaoSede_Origem': int(row_origem['populacao_sede']),
+                'NumMunicipios_Origem': int(row_origem['num_municipios']),
+                'PopulacaoUTP_Destino': int(row_destino['populacao_total_utp']),
+                'PopulacaoSede_Destino': int(row_destino['populacao_sede']),
+                'NumMunicipios_Destino': int(row_destino['num_municipios']),
+                
+                # Aeroporto
+                'Aeroporto_Origem': 'Sim' if row_origem['tem_aeroporto'] else '',
+                'AeroportoICAO_Origem': row_origem['aeroporto_icao'] if row_origem['tem_aeroporto'] else '',
+                'AeroportoPassageiros_Origem': int(row_origem['aeroporto_passageiros']) if row_origem['tem_aeroporto'] else 0,
+                'Aeroportos100km_Origem': row_origem['aeroportos_100km'],
+                'Aeroporto_Destino': 'Sim' if row_destino['tem_aeroporto'] else '',
+                'AeroportoICAO_Destino': row_destino['aeroporto_icao'] if row_destino['tem_aeroporto'] else '',
+                'AeroportoPassageiros_Destino': int(row_destino['aeroporto_passageiros']) if row_destino['tem_aeroporto'] else 0,
+                'Aeroportos100km_Destino': row_destino['aeroportos_100km'],
+                
+                # Turismo
+                'ClassificacaoTurismo_Origem': row_origem['turismo'] if row_origem['turismo'] else '',
+                'RegiaoTuristica_Origem': row_origem['regiao_turistica'],
+                'DensidadeLeitosHospedagem_Origem': row_origem['densidade_leitos_hospedagem'],
+                'EstabTurismoMilHab_Origem': row_origem['estabelecimentos_turismo_mil_hab'],
+                'DemandaTuristica_Origem': row_origem['demanda_turistica'],
+                'ClassificacaoTurismo_Destino': row_destino['turismo'] if row_destino['turismo'] else '',
+                'RegiaoTuristica_Destino': row_destino['regiao_turistica'],
+                'DensidadeLeitosHospedagem_Destino': row_destino['densidade_leitos_hospedagem'],
+                'EstabTurismoMilHab_Destino': row_destino['estabelecimentos_turismo_mil_hab'],
+                'DemandaTuristica_Destino': row_destino['demanda_turistica'],
+                
+                # Infraestrutura
+                'Rodoviarias_Origem': row_origem['rodoviarias'],
+                'RegiaoMetropolitana_Origem': row_origem['regiao_metropolitana'],
+                'Rodoviarias_Destino': row_destino['rodoviarias'],
+                'RegiaoMetropolitana_Destino': row_destino['regiao_metropolitana'],
+                
+                # Economia
+                'EstabFormaisMilHab_Origem': row_origem['estabelecimentos_formais_mil_hab'],
+                'RendaPerCapita_Origem': row_origem['renda_per_capita'],
+                'RemuneracaoMedia_Origem': row_origem['remuneracao_media'],
+                'ICE_R_Origem': row_origem['ice_r'],
+                'EstabFormaisMilHab_Destino': row_destino['estabelecimentos_formais_mil_hab'],
+                'RendaPerCapita_Destino': row_destino['renda_per_capita'],
+                'RemuneracaoMedia_Destino': row_destino['remuneracao_media'],
+                'ICE_R_Destino': row_destino['ice_r'],
+                
+                # Conectividade
+                'Cobertura4G_Origem': row_origem['cobertura_4g_pct'],
+                'Cobertura5G_Origem': row_origem['cobertura_5g_pct'],
+                'DensidadeBandaLarga_Origem': row_origem['densidade_banda_larga'],
+                'Cobertura4G_Destino': row_destino['cobertura_4g_pct'],
+                'Cobertura5G_Destino': row_destino['cobertura_5g_pct'],
+                'DensidadeBandaLarga_Destino': row_destino['densidade_banda_larga'],
+                
+                # Saúde
+                'Medicos100MilHab_Origem': row_origem['medicos_100mil_hab'],
+                'Leitos100MilHab_Origem': row_origem['leitos_hospitalares_100mil_hab'],
+                'LeitosUTI100MilHab_Origem': row_origem['leitos_uti_100mil_hab'],
+                'Medicos100MilHab_Destino': row_destino['medicos_100mil_hab'],
+                'Leitos100MilHab_Destino': row_destino['leitos_hospitalares_100mil_hab'],
+                'LeitosUTI100MilHab_Destino': row_destino['leitos_uti_100mil_hab'],
+                
+                # Segurança
+                'TaxaHomicidios_Origem': row_origem['taxa_homicidios_100mil_hab'],
+                'TaxaHomicidios_Destino': row_destino['taxa_homicidios_100mil_hab'],
+                
+                # Observação
+                'observacao': row_origem['alerta_detalhes'].get('alerta', '') if row_origem['alerta_detalhes'] else ''
+            }
+            
+            comprehensive_data.append(comprehensive_row)
+        
+        df_comprehensive = pd.DataFrame(comprehensive_data)
+        
+        if not df_comprehensive.empty:
+            df_comprehensive = df_comprehensive.sort_values('proporcao_fluxo_pct', ascending=False)
+        
+        return df_comprehensive
+    
     def export_to_json(self, output_path: Path) -> bool:
         """
         Exporta resultados da análise para JSON persistente.
@@ -613,7 +810,7 @@ class SedeAnalyzer:
                     'timestamp': datetime.now().isoformat(),
                     'consolidation_applied': self.consolidation_loader is not None and self.consolidation_loader.is_executed(),
                     'total_sedes': len(df_export),
-                    'version': '1.0'
+                    'version': '2.0'  # Versão 2.0 com tabela completa
                 },
                 'summary': {
                     'success': True,
@@ -625,6 +822,25 @@ class SedeAnalyzer:
                 },
                 'sede_analysis': df_export.to_dict('records')
             }
+            
+            # Adicionar tabela completa de dependências origem-destino
+            try:
+                df_comprehensive = self.export_comprehensive_dependency_table()
+                if not df_comprehensive.empty:
+                    # Converter para JSON-serializável
+                    df_comp_export = df_comprehensive.copy()
+                    for col in df_comp_export.columns:
+                        if df_comp_export[col].dtype == 'object':
+                            df_comp_export[col] = df_comp_export[col].fillna('')
+                        elif df_comp_export[col].dtype in ['int64', 'Int64']:
+                            df_comp_export[col] = df_comp_export[col].fillna(0).astype(int)
+                        elif df_comp_export[col].dtype in ['float64', 'Float64']:
+                            df_comp_export[col] = df_comp_export[col].fillna(0.0)
+                    
+                    export_data['comprehensive_dependency_table'] = df_comp_export.to_dict('records')
+                    self.logger.info(f"   📊 Tabela completa: {len(df_comp_export)} relações origem-destino, {len(df_comp_export.columns)} colunas")
+            except Exception as e:
+                self.logger.warning(f"   ⚠️ Erro ao exportar tabela completa: {e}")
             
             # Salvar JSON
             output_path = Path(output_path)
