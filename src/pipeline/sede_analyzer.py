@@ -20,15 +20,14 @@ class SedeAnalyzer:
     outra sede a até 2 horas de distância, indicando possível dependência funcional.
     """
     
-    def __init__(self, data_path: Optional[Path] = None, consolidation_loader=None):
+    def __init__(self, data_path: Optional[Path] = None, consolidation_loader=None, map_generator=None):
         """
         Inicializa o analisador de sedes.
         
         Args:
             data_path: Caminho para o diretório de dados. Se None, usa o padrão do projeto.
-            consolidation_loader: Opcional. ConsolidationLoader para aplicar consolidações territoriais
-                                 antes da análise. Se fornecido, a análise será feita sobre a
-                                 configuração territorial PÓS-consolidação.
+            consolidation_loader: Opcional. ConsolidationLoader para aplicar consolidações.
+            map_generator: Opcional. UTPMapGenerator com geometrias carregadas (para fallback de distância).
         """
         self.logger = logging.getLogger("GeoValida.SedeAnalyzer")
         
@@ -42,9 +41,14 @@ class SedeAnalyzer:
         self.df_impedance = None
         self.df_sede_analysis = None
         
-        # Consolidation loader (se fornecido)
+        # Componentes externos
         self.consolidation_loader = consolidation_loader
+        self.map_generator = map_generator
         
+        # Dados agregados
+        self.sede_metrics = {}
+        self.dependency_alerts = []
+    
         # Dados agregados
         self.sede_metrics = {}
         self.dependency_alerts = []
@@ -138,7 +142,7 @@ class SedeAnalyzer:
         except Exception as e:
             self.logger.error(f"Erro ao carregar matriz de impedância: {e}")
             return False
-    
+
     def get_main_flow_destination(self, cd_mun_origem: int) -> Tuple[Optional[int], float, int, int]:
         """
         Identifica o principal destino de fluxo para um município origem.
@@ -185,33 +189,65 @@ class SedeAnalyzer:
     def get_travel_time(self, cd_origem: int, cd_destino: int) -> Optional[float]:
         """
         Obtém o tempo de viagem entre dois municípios.
-        
-        Args:
-            cd_origem: Código IBGE do município de origem
-            cd_destino: Código IBGE do município de destino
-            
-        Returns:
-            Tempo em horas, ou None se não houver conexão ≤2h
+        Fallback: Calcula distância geodésica se não houver na matriz.
         """
-        if self.df_impedance is None:
-            return None
+        # 1. Tentar matriz de impedância
+        if self.df_impedance is not None:
+            origem_str = str(cd_origem)
+            destino_str = str(cd_destino)
+            
+            pair = self.df_impedance[
+                (self.df_impedance['origem'] == origem_str) & 
+                (self.df_impedance['destino'] == destino_str)
+            ]
+            
+            if not pair.empty:
+                return float(pair.iloc[0]['tempo_horas'])
         
-        # Converter para string para busca
-        origem_str = str(cd_origem)
-        destino_str = str(cd_destino)
+        # 2. Fallback: Calcular via distância geodésica
+        if self.map_generator and self.map_generator.gdf_complete is not None:
+            try:
+                gdf = self.map_generator.gdf_complete
+                
+                # Buscar geometrias usando CD_MUN (convertendo para str se necessário)
+                # O shapefile geralmente tem CD_MUN como string ou int, precisamos garantir match
+                
+                # Tentar buscar origem
+                geom_orig = gdf[gdf['CD_MUN'].astype(str) == str(cd_origem)]
+                geom_dest = gdf[gdf['CD_MUN'].astype(str) == str(cd_destino)]
+                
+                if not geom_orig.empty and not geom_dest.empty:
+                    # Usar centroids projetados para cálculo rápido (ou to_crs(4326) para haversine preciso)
+                    # Vamos projetar para UTM (SIRGAS 2000 / Brazil Polyconic ou apenas EPSG:3857 para aproximar)
+                    # EPSG:5880 (SIRGAS 2000 / Brazil Polyconic) é bom para metros
+                    
+                    p1 = geom_orig.iloc[0].geometry.centroid
+                    p2 = geom_dest.iloc[0].geometry.centroid
+                    
+                    # Calcular distância euclidiana se estiver projetado, ou haversine se geográfico
+                    # Vamos garantir projeção métrica para calcular em KM
+                    if gdf.crs.is_geographic:
+                        # Reprojetar pontos apenas
+                        import geopandas as gpd
+                        p1 = gpd.GeoSeries([p1], crs=gdf.crs).to_crs(epsg=5880).iloc[0]
+                        p2 = gpd.GeoSeries([p2], crs=gdf.crs).to_crs(epsg=5880).iloc[0]
+                    
+                    dist_meters = p1.distance(p2)
+                    dist_km = dist_meters / 1000.0
+                    
+                    # Estimar tempo: 60 km/h média
+                    # Adicionar penalidade de 1.2x para tortuosidade da estrada
+                    estimated_time = (dist_km * 1.2) / 60.0
+                    
+                    # Logging discreto para debug
+                    # self.logger.debug(f"Time estimated {cd_origem}->{cd_destino}: {dist_km:.1f}km -> {estimated_time:.2f}h")
+                    
+                    return estimated_time
+            except Exception as e:
+                self.logger.warning(f"Erro ao estimar distância {cd_origem}->{cd_destino}: {e}")
         
-        # Buscar par na matriz
-        pair = self.df_impedance[
-            (self.df_impedance['origem'] == origem_str) & 
-            (self.df_impedance['destino'] == destino_str)
-        ]
-        
-        if pair.empty:
-            return None
-        
-        # Retornar tempo (já convertido para float no carregamento)
-        return float(pair.iloc[0]['tempo_horas'])
-    
+        return None
+
     def is_sede(self, cd_mun: int) -> bool:
         """
         Verifica se um município é sede de UTP.
@@ -444,10 +480,13 @@ class SedeAnalyzer:
         """
         self.logger.info("Iniciando análise de dependências entre sedes...")
         
-        # 1. Carregar dados
-        if not self.load_initialization_data():
-            self.logger.error("Falha ao carregar dados de inicialização")
-            return {'success': False, 'error': 'Falha ao carregar dados'}
+        # 1. Carregar dados (se ainda não carregados)
+        if self.df_municipios is None:
+            if not self.load_initialization_data():
+                self.logger.error("Falha ao carregar dados de inicialização")
+                return {'success': False, 'error': 'Falha ao carregar dados'}
+        else:
+             self.logger.info(f"Usando DataFrame pré-carregado com {len(self.df_municipios)} municípios.")
         
         # 2. Carregar impedância
         self.load_impedance_data()

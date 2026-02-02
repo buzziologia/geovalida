@@ -185,6 +185,13 @@ class TerritorialGraph:
         # 1. Limpeza e Dissolve (Cria o mapa de UTPs)
         gdf_clean = gdf.dropna(subset=['UTP_ID', 'geometry']).copy()
         gdf_clean['UTP_ID'] = gdf_clean['UTP_ID'].astype(str)
+        
+        # DEBUG: Verificar diversidade de UTPs
+        unique_utps = gdf_clean['UTP_ID'].unique()
+        logging.info(f"   [DEBUG] UTPs únicas no GDF: {len(unique_utps)}")
+        if len(unique_utps) <= 5:
+             logging.info(f"   [DEBUG] Lista de UTPs: {unique_utps}")
+
         gdf_utps = gdf_clean[['UTP_ID', 'geometry']].dissolve(by='UTP_ID')
         
         # 2. Projeção métrica para buffer preciso
@@ -210,6 +217,9 @@ class TerritorialGraph:
                 G.add_edge(str(idx_left), str(idx_right))
 
         logging.info(f"Grafo de adjacência construído: {G.number_of_nodes()} nós e {G.number_of_edges()} conexões.")
+        
+        if G.number_of_edges() == 0 and len(unique_utps) > 1:
+             logging.warning("   [DEBUG] ⚠️ Nenhuma adjacência encontrada! O mapa pode ficar monocromático se o algoritmo falhar.")
 
         # 4. Coloração Mínima (DSATUR garante menos cores em mapas geográficos)
         utp_color_map = nx.coloring.greedy_color(G, strategy='DSATUR')
@@ -221,5 +231,69 @@ class TerritorialGraph:
             utp_id = str(row['UTP_ID'])
             final_coloring[cd_mun] = utp_color_map.get(utp_id, 0)
             
-        logging.info(f"Coloração concluída: {max(utp_color_map.values(), default=0) + 1} cores.")
+        colors_used = max(utp_color_map.values(), default=0) + 1
+        logging.info(f"Coloração concluída: {colors_used} cores.")
         return final_coloring
+
+    def export_snapshot(self, path: Path, step_name: str, gdf: gpd.GeoDataFrame = None):
+        """
+        Exporta um snapshot completo do estado atual do grafo para JSON.
+        
+        Inclui:
+        - Nós e seus atributos (utp_id, sede_utp, regic, etc.)
+        - Mapeamento de Sedes (utp_seeds)
+        - Coloração atual (se gdf fornecido ou já calculada)
+        """
+        import json
+        from datetime import datetime
+        
+        # 1. Preparar dados dos nós
+        # 1. Preparar dados dos nós (Enrich com dados estruturais)
+        nodes_data = {}
+        for node in self.hierarchy.nodes():
+             data = self.hierarchy.nodes[node].copy()
+             
+             # Se for município, precisamos injetar o utp_id derivado da estrutura (arestas)
+             # pois o SnapshotLoader espera encontrar esse atributo no nó
+             if data.get('type') == 'municipality':
+                 # Resolver UTP pai
+                 utp_id = self.get_municipality_utp(node)
+                 data['utp_id'] = utp_id
+                 
+                 # Garantir que sede_utp está presente se for True
+                 # (Às vezes pode estar faltando se foi definido apenas na lista de seeds)
+                 if str(data.get('utp_id')) in self.utp_seeds:
+                     # FIX: Enforce strict consistency with utp_seeds to prevent 'ghost sedes'
+                     # If the UTP has a registered seed, ONLY that seed should be True.
+                     # All others must be False.
+                     expected_sede = self.utp_seeds[str(data.get('utp_id'))]
+                     is_sede = (str(expected_sede) == str(node))
+                     data['sede_utp'] = is_sede
+             
+             # Converter chaves para string para JSON
+             nodes_data[str(node)] = data
+             
+        # 2. Preparar seeds (convertendo chaves/valores para str/int)
+        seeds_data = {str(k): int(v) for k, v in self.utp_seeds.items()}
+        
+        # 3. Preparar coloração (se existir no GDF)
+        coloring = {}
+        if gdf is not None and 'COLOR_ID' in gdf.columns and 'CD_MUN' in gdf.columns:
+            for _, row in gdf[['CD_MUN', 'COLOR_ID']].dropna().iterrows():
+                coloring[str(int(row['CD_MUN']))] = int(row['COLOR_ID'])
+        
+        snapshot = {
+            "metadata": {
+                "timestamp": datetime.now().isoformat(),
+                "step": step_name,
+                "version": "1.0"
+            },
+            "nodes": nodes_data,
+            "utp_seeds": seeds_data,
+            "coloring": coloring
+        }
+        
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(snapshot, f, indent=2, ensure_ascii=False)
+            
+        logging.info(f"📸 Snapshot '{step_name}' salvo em: {path}")

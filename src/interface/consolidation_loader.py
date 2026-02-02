@@ -15,9 +15,44 @@ class ConsolidationLoader:
     
     def __init__(self):
         self.result_path = Path(__file__).parent.parent.parent / "data" / "consolidation_result.json"
+        self.post_unitary_path = Path(__file__).parent.parent.parent / "data" / "post_unitary_consolidation.json"
+        self.sede_result_path = Path(__file__).parent.parent.parent / "data" / "sede_consolidation_result.json"
         self.log_path = Path(__file__).parent.parent.parent / "data" / "consolidation_log.json"
         self.result = self._load_result()
-    
+        self.post_unitary_result = self._load_post_unitary_result()
+        self.sede_result = self._load_sede_result()
+
+    def _load_sede_result(self) -> Dict:
+        """Carrega o arquivo de resultado da consolidação de sedes."""
+        if not self.sede_result_path.exists():
+            return self._default_result()
+        
+        try:
+            with open(self.sede_result_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return self._default_result()
+        except Exception as e:
+            print(f"Erro ao carregar resultado de sedes: {e}")
+            return self._default_result()
+
+    def _load_post_unitary_result(self) -> Dict:
+        """Carrega o snapshot após Steps 5+7, antes da Step 6 (sedes)."""
+        if not self.post_unitary_path.exists():
+            # Fallback: se o snapshot não existe, usa o resultado completo
+            return self._load_result()
+        
+        try:
+            with open(self.post_unitary_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            # Arquivo vazio ou inexistente - comportamento normal na primeira execução
+            return self._load_result()
+        except Exception as e:
+            print(f"Erro ao carregar snapshot pós-unitárias: {e}")
+            # Fallback para resultado completo
+            return self._load_result()
+
     def _load_result(self) -> Dict:
         """Carrega o arquivo de resultado de consolidação."""
         if not self.result_path.exists():
@@ -34,6 +69,8 @@ class ConsolidationLoader:
         try:
             with open(self.result_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return self._default_result()
         except Exception as e:
             print(f"Erro ao carregar resultado: {e}")
             return self._default_result()
@@ -119,21 +156,32 @@ class ConsolidationLoader:
         
         return current
     
-    def apply_consolidations_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+    def compute_mapping_from_list(self, consolidations: List[Dict]) -> Dict:
+        """Computa o mapeamento source->target a partir de uma lista de consolidações."""
+        mapping = {}
+        for cons in consolidations:
+            mapping[cons["source_utp"]] = cons["target_utp"]
+        return mapping
+
+    def apply_consolidations_to_dataframe(self, df: pd.DataFrame, custom_mapping: Dict = None) -> pd.DataFrame:
         """
         Aplica as consolidações a um dataframe, cuidando da lógica de sedes.
         
         Args:
             df: DataFrame com colunas 'utp_id', 'sede_utp', 'nm_mun'
+            custom_mapping: (Opcional) Dicionário de mapeamento específico. 
+                          Se None, usa o do resultado carregado.
         
         Returns:
             DataFrame com UTPs consolidadas e sedes atualizadas
         """
-        if not self.is_executed():
+        if custom_mapping is None and not self.is_executed():
             return df.copy()
         
         df_consolidated = df.copy()
-        mapping = self.get_utps_mapping()
+        
+        # Usa mapeamento customizado ou o carregado do resultado
+        mapping = custom_mapping if custom_mapping is not None else self.get_utps_mapping()
         
         if mapping:
             # 1. Identificar quem vai mudar de UTP
@@ -218,4 +266,78 @@ class ConsolidationLoader:
     def clear(self):
         """Limpa o resultado de consolidação."""
         self.result = self._default_result()
+        self.sede_result = self._default_result()
         self.save_result()
+        self.save_sede_result()
+
+    def save_sede_result(self, data: Dict = None):
+        """Salva o resultado da consolidação de sedes."""
+        if data:
+            self.sede_result = data
+            
+        try:
+            self.sede_result_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.sede_result_path, 'w', encoding='utf-8') as f:
+                json.dump(self.sede_result, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Erro ao salvar resultado de sedes: {e}")
+
+    def get_sede_result(self) -> Dict:
+        """Retorna o resultado específico da consolidação de sedes."""
+        return self.sede_result
+
+    def is_sede_executed(self) -> bool:
+        """Verifica se a consolidação de sedes foi executada."""
+        return self.sede_result["status"] == "executed"
+
+    def get_post_unitary_mapping(self) -> Dict:
+        """Retorna o mapeamento de UTPs do snapshot pós-unitárias (Steps 5+7)."""
+        return self.post_unitary_result.get("utps_mapping", {})
+    
+    def get_post_unitary_consolidations(self) -> List[Dict]:
+        """Retorna a lista de consolidações do snapshot pós-unitárias (Steps 5+7)."""
+        return self.post_unitary_result.get("consolidations", [])
+    
+    def is_post_unitary_executed(self) -> bool:
+        """Verifica se há snapshot pós-unitárias disponível."""
+        return self.post_unitary_result.get("status") == "executed"
+    
+    def apply_post_unitary_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Aplica apenas as consolidações pós-unitárias (Steps 5+7) a um dataframe,
+        SEM incluir consolidações de sedes.
+        
+        Args:
+            df: DataFrame com colunas 'utp_id', 'sede_utp', 'nm_mun'
+        
+        Returns:
+            DataFrame com consolidações de Steps 5+7 aplicadas (antes da Step 6)
+        """
+        if not self.is_post_unitary_executed():
+            return df.copy()
+        
+        # Usar o mapeamento do snapshot pós-unitárias
+        mapping = self.get_post_unitary_mapping()
+        
+        if not mapping:
+            return df.copy()
+        
+        df_consolidated = df.copy()
+        
+        # Aplicar mesma lógica do apply_consolidations_to_dataframe
+        # mas usando o mapeamento pós-unitárias
+        changing_mask = df_consolidated['utp_id'].isin(mapping.keys())
+        df_consolidated.loc[changing_mask, 'sede_utp'] = False
+        
+        df_consolidated['utp_id'] = df_consolidated['utp_id'].apply(
+            lambda x: self._resolve_mapping_chain(x, mapping)
+        )
+        
+        if 'nm_sede' in df_consolidated.columns:
+            sedes_atuais = df_consolidated[df_consolidated['sede_utp'] == True]
+            name_col = 'nm_mun' if 'nm_mun' in sedes_atuais.columns else 'NM_MUN'
+            if name_col in sedes_atuais.columns:
+                sede_mapper = sedes_atuais.set_index('utp_id')[name_col].to_dict()
+                df_consolidated['nm_sede'] = df_consolidated['utp_id'].map(sede_mapper).fillna('')
+        
+        return df_consolidated

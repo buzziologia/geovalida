@@ -10,6 +10,8 @@ from src.core.validator import TerritorialValidator
 from src.pipeline.analyzer import ODAnalyzer
 from src.pipeline.consolidator import UTPConsolidator
 from src.pipeline.mapper import UTPMapGenerator
+from src.pipeline.sede_consolidator import SedeConsolidator
+from src.pipeline.sede_analyzer import SedeAnalyzer
 
 class GeoValidaManager:
     """
@@ -29,6 +31,17 @@ class GeoValidaManager:
         self.analyzer = ODAnalyzer()
         self.map_generator = UTPMapGenerator(self.graph)
         self.consolidator = UTPConsolidator(self.graph, self.validator)
+        
+        # New Components for Step 6
+        # Pass map_generator to enable distance fallback calculation
+        self.sede_analyzer = SedeAnalyzer(map_generator=self.map_generator) 
+        
+        # Note: We need to inject data into analyzer if we want it to use memory data instead of reloading files
+        # But SedeAnalyzer currently loads files. We might want to bridge this.
+        # Ideally SedeAnalyzer should accept 'manager' or 'dataframes' but it's designed to load from files.
+        # For now, we will let it load, or we can manually stick data into it.
+        # The Consolidator needs it.
+        self.sede_consolidator = SedeConsolidator(self.graph, self.validator, self.sede_analyzer)
     
     @property
     def gdf(self):
@@ -205,6 +218,21 @@ class GeoValidaManager:
         
         # Gera também o mapa de RMs
         self.map_generator.save_rm_map(FILES['mapa_rm'])
+        
+        # Export Snapshot Step 1 (Initial State)
+        snapshot_path = Path(__file__).parent.parent.parent / "data" / "03_processed" / "snapshot_step1_initial.json"
+        
+        try:
+            # FIX: Ensure coloring is computed and attached to the GDF before export
+            gdf = self.map_generator.gdf_complete
+            if gdf is not None and not gdf.empty:
+                 coloring = self.graph.compute_graph_coloring(gdf)
+                 # Map coloring back to GDF column so export_snapshot picks it up
+                 gdf['COLOR_ID'] = gdf['CD_MUN'].astype(int).map(coloring).fillna(0).astype(int)
+            
+            self.graph.export_snapshot(snapshot_path, "Initial State", self.map_generator.gdf_complete)
+        except Exception as e:
+             self.logger.warning(f"⚠️ Failed to export Step 1 snapshot: {e}")
 
     def step_2_analyze_flows(self):
         """Analisa a Matriz OD para encontrar dependências funcionais."""
@@ -245,5 +273,125 @@ class GeoValidaManager:
         (self.map_generator
             .sync_with_graph(self.graph)
             .save_map(FILES['mapa_final'], title="Resultado Final: Mapa Estruturado"))
+            
+        # Export Snapshot Step 5+7 (Post-Unitary)
+        snapshot_path = Path(__file__).parent.parent.parent / "data" / "03_processed" / "snapshot_step5_post_unitary.json"
+        
+        try:
+            # FIX: Compute coloring for snapshot
+            gdf = self.map_generator.gdf_complete
+            if gdf is not None and not gdf.empty:
+                # Ensure UTP_ID column exists or copy from utp_id
+                if 'utp_id' in gdf.columns and 'UTP_ID' not in gdf.columns:
+                    gdf['UTP_ID'] = gdf['utp_id']
+                
+                coloring = self.graph.compute_graph_coloring(gdf)
+                gdf['COLOR_ID'] = gdf['CD_MUN'].astype(int).map(coloring).fillna(0).astype(int)
+                
+            self.graph.export_snapshot(snapshot_path, "Post-Unitary Consolidation", self.map_generator.gdf_complete)
+        except Exception as e:
+             self.logger.warning(f"⚠️ Failed to export Step 5+7 snapshot: {e}")
+        
+        return changes
+
+    def step_6_consolidate_sedes(self):
+        """Consolida Sedes com base em dependência e pontuação (Passo 6)."""
+        self.logger.info("Etapa 6: Consolidação de Sedes...")
+        
+        # 1. Ensure SedeAnalyzer has data
+        if self.sede_analyzer.df_municipios is None:
+            if hasattr(self, 'municipios_data') and self.municipios_data is not None:
+                self.logger.info("Injecting data into SedeAnalyzer from Manager...")
+                self.sede_analyzer.df_municipios = self.municipios_data.copy()
+            else:
+                self.logger.info("Loading data for SedeAnalyzer specificially...")
+                self.sede_analyzer.load_initialization_data()
+        
+        # 2. Sync UTP IDs from Graph (Vital because Step 5 or 7 might have changed UTPs)
+        # Ensure we are using the LATEST graph state
+        # CRITICAL FIX: Also sync sede_utp flag!
+        if self.sede_analyzer.df_municipios is not None:
+             count_synced = 0
+             for idx, row in self.sede_analyzer.df_municipios.iterrows():
+                 cd_mun = row['cd_mun']
+                 current_utp = self.graph.get_municipality_utp(cd_mun)
+                 if current_utp != "NAO_ENCONTRADO" and current_utp != "SEM_UTP":
+                     self.sede_analyzer.df_municipios.at[idx, 'utp_id'] = current_utp
+                     
+                     # CRITICAL FIX: Sync sede_utp flag from graph
+                     # Without this, calculate_socioeconomic_metrics() finds ZERO sedes!
+                     is_sede = self.graph.hierarchy.nodes.get(cd_mun, {}).get('sede_utp', False)
+                     self.sede_analyzer.df_municipios.at[idx, 'sede_utp'] = is_sede
+                     
+                     count_synced += 1
+             self.logger.info(f"Synced {count_synced} UTPs from Graph to Analyzer DataFrame.")
+        
+        # Load impedance if not loaded
+        if self.sede_analyzer.df_impedance is None:
+            self.sede_analyzer.load_impedance_data()
+            
+        changes = self.sede_consolidator.run_sede_consolidation(
+            self.analyzer.full_flow_df, 
+            self.map_generator.gdf_complete,
+            self.map_generator
+        )
+        
+        # Save map after Step 6
+        (self.map_generator
+            .sync_with_graph(self.graph)
+            .save_map(FILES['mapa_05'].parent / "mapa_06_sedes.png", title="Pós-Consolidação de Sedes"))
+            
+        return changes
+
+    def step_8_border_validation(self):
+        """
+        Step 8: Border Validation and Refinement
+        
+        Validates UTP borders by analyzing border municipalities' main flow.
+        Reallocates municipalities when flow points to a different UTP
+        and RM rules are respected. Runs iteratively until convergence.
+        """
+        self.logger.info("Etapa 8: Validação de Fronteiras...")
+        
+        from src.pipeline.border_validator import BorderValidator
+        
+        # Create validator instance
+        validator_instance = BorderValidator(
+            graph=self.graph,
+            validator=self.validator,
+            consolidation_manager=self.consolidator.consolidation_manager if hasattr(self.consolidator, 'consolidation_manager') else None
+        )
+        
+        # Sync map with current graph state
+        self.map_generator.sync_with_graph(self.graph)
+        
+        # Run border validation
+        changes = validator_instance.run_border_validation(
+            flow_df=self.analyzer.full_flow_df,
+            gdf=self.map_generator.gdf_complete,
+            max_iterations=100
+        )
+        
+        # Save map after Step 8
+        (self.map_generator
+            .sync_with_graph(self.graph)
+            .save_map(FILES['mapa_05'].parent / "mapa_08_borders.png", title="Pós-Validação de Fronteiras"))
+            
+        # Export Snapshot Step 8 (Final Validated)
+        snapshot_path = Path(__file__).parent.parent.parent / "data" / "03_processed" / "snapshot_step8_border_validation.json"
+        
+        try:
+            # FIX: Compute coloring for snapshot
+            gdf = self.map_generator.gdf_complete
+            if gdf is not None and not gdf.empty:
+                if 'utp_id' in gdf.columns and 'UTP_ID' not in gdf.columns:
+                    gdf['UTP_ID'] = gdf['utp_id']
+                    
+                coloring = self.graph.compute_graph_coloring(gdf)
+                gdf['COLOR_ID'] = gdf['CD_MUN'].astype(int).map(coloring).fillna(0).astype(int)
+            
+            self.graph.export_snapshot(snapshot_path, "Border Validation", self.map_generator.gdf_complete)
+        except Exception as e:
+             self.logger.warning(f"⚠️ Failed to export Step 8 snapshot: {e}")
         
         return changes

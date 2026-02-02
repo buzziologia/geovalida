@@ -58,17 +58,7 @@ def load_sede_regic():
         return pd.DataFrame()
 
 
-def load_turismo():
-    """Carrega classificação de turismo."""
-    logger.info("Carregando classificação de turismo...")
-    file_path = RAW_DATA_DIR / "UTP_TURISMO.xlsx"
-    try:
-        df = pd.read_excel(file_path)
-        logger.info(f"  ✓ Carregadas {len(df)} classificações de turismo")
-        return df
-    except Exception as e:
-        logger.error(f"  ✗ Erro ao carregar turismo: {e}")
-        return pd.DataFrame()
+
 
 
 def load_categorization():
@@ -76,7 +66,7 @@ def load_categorization():
     logger.info("Carregando categorização base...")
     file_path = RAW_DATA_DIR / "Base_Categorização(Base Organizada Normalizada).csv"
     try:
-        df = pd.read_csv(file_path, sep=';', encoding='utf-8')
+        df = pd.read_csv(file_path, sep=';', encoding='utf-8', header=1)
         logger.info(f"  ✓ Carregadas {len(df)} categorias")
         return df
     except Exception as e:
@@ -212,7 +202,7 @@ def load_metropolitan_regions():
 
 
 def consolidate_data(
-    df_utp, df_sede, df_turismo, df_categorizacao, 
+    df_utp, df_sede, df_categorizacao, 
     df_airports, impedances, modals, df_population, df_rm
 ):
     """Consolida todos os dados em estrutura JSON."""
@@ -243,14 +233,17 @@ def consolidate_data(
             logger.warning(f"Erro ao processar aeroportos: {e}")
     
     # Lookup de turismo
+    # Lookup de turismo
     turismo_lookup = {}
-    if not df_turismo.empty:
+    if not df_categorizacao.empty:
         try:
-            cd_col = next((col for col in df_turismo.columns if 'cd' in col.lower()), df_turismo.columns[0])
-            class_col = next((col for col in df_turismo.columns if 'class' in col.lower() or 'turismo' in col.lower()), None)
-            if class_col:
-                df_turismo[cd_col] = pd.to_numeric(df_turismo[cd_col], errors='coerce')
-                turismo_lookup = df_turismo.dropna(subset=[cd_col]).set_index(cd_col)[class_col].to_dict()
+            # Colunas esperadas: md_cod_mun e Categoria
+            if 'md_cod_mun' in df_categorizacao.columns and 'Categoria' in df_categorizacao.columns:
+                df_categorizacao['md_cod_mun'] = pd.to_numeric(df_categorizacao['md_cod_mun'], errors='coerce')
+                turismo_lookup = df_categorizacao.dropna(subset=['md_cod_mun']).set_index('md_cod_mun')['Categoria'].to_dict()
+                logger.info(f"  ✓ Processadas {len(turismo_lookup)} classificações de turismo")
+            else:
+                logger.warning("  ⚠ Colunas 'md_cod_mun' ou 'Categoria' não encontradas em categorização")
         except Exception as e:
             logger.warning(f"Erro ao processar turismo: {e}")
     
@@ -444,7 +437,7 @@ def save_json(municipios, utps):
         'fontes': [
             'UTP_FINAL.xlsx',
             'SEDE+regic.xlsx',
-            'UTP_TURISMO.xlsx',
+
             'Base_Categorização.csv',
             'Aeros_comercial.csv',
             'Composicao_RM_2024.xlsx',
@@ -477,7 +470,7 @@ def main():
     # Carregar dados
     df_utp = load_utp_base()
     df_sede = load_sede_regic()
-    df_turismo = load_turismo()
+    # df_turismo removido (agora usa df_categorizacao)
     df_categorizacao = load_categorization()
     df_airports = load_airports()
     impedances = load_impedances()
@@ -486,8 +479,9 @@ def main():
     df_rm = load_metropolitan_regions()
     
     # Consolidar
+    # Consolidar
     municipios, utps = consolidate_data(
-        df_utp, df_sede, df_turismo, df_categorizacao,
+        df_utp, df_sede, df_categorizacao,
         df_airports, impedances, modals, df_population, df_rm
     )
     

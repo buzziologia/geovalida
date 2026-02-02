@@ -9,6 +9,7 @@ from pathlib import Path
 from datetime import datetime
 from src.utils import DataLoader
 from src.interface.consolidation_loader import ConsolidationLoader
+from src.interface.snapshot_loader import SnapshotLoader
 from src.run_consolidation import run_consolidation
 from src.pipeline.sede_analyzer import SedeAnalyzer
 from src.interface.components import sede_comparison
@@ -87,11 +88,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Paleta Pastel (Cores suaves e agradáveis)
-PASTEL_PALETTE = [
-    '#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', 
-    '#b3de69', '#fccde5', '#d9d9d9', '#bc80bd', '#ccebc5', '#ffed6f',
-    '#a6cee3', '#b2df8a', '#fb9a99', '#fdbf6f', '#cab2d6', '#ffff99'
-]
+from src.interface.palette import get_palette
+
+# Carregar Paleta Ativa
+PASTEL_PALETTE = get_palette()
 
 
 @st.cache_data(show_spinner="Carregando mapa...", hash_funcs={gpd.GeoDataFrame: id, pd.DataFrame: id})
@@ -224,6 +224,12 @@ def load_or_compute_coloring(gdf, cache_filename="initial_coloring.json"):
     """
     cache_path = Path(__file__).parent.parent.parent / "data" / cache_filename
     
+    # Check alternate location (03_processed) if not in root data
+    if not cache_path.exists():
+        alt_path = Path(__file__).parent.parent.parent / "data" / "03_processed" / cache_filename
+        if alt_path.exists():
+            cache_path = alt_path
+
     # Tentar carregar do arquivo
     if cache_path.exists():
         try:
@@ -508,6 +514,12 @@ def render_map(gdf_filtered, title="Mapa", global_colors=None, graph=None, gdf_r
     
     gdf_filtered = gdf_filtered.copy()
     
+    # Garantir índice único
+    gdf_filtered = gdf_filtered.reset_index(drop=True)
+    
+    # Inicializar coluna de cor com valor seguro padrão para evitar problemas no Folium
+    gdf_filtered['color'] = '#cccccc'
+    
     # ESTRATÉGIA DE COLORAÇÃO
     # 1. Se colors globais fornecidas (cacheado, rápido), usar.
     # 2. Se grafo fornecido (dinâmico, lento), calcular.
@@ -521,11 +533,18 @@ def render_map(gdf_filtered, title="Mapa", global_colors=None, graph=None, gdf_r
             # A coloração global já considera UTPs vizinhas
             for idx, row in gdf_filtered.iterrows():
                 try:
-                    cd_mun = int(row['CD_MUN'])
+                    # Tenta acessar CD_MUN ou cd_mun
+                    cd_mun_val = row.get('CD_MUN') if 'CD_MUN' in row else row.get('cd_mun')
+                    if cd_mun_val is None: continue
+                    
+                    cd_mun = int(cd_mun_val)
+                    if not PASTEL_PALETTE:
+                         raise ValueError("Paleta vazia")
+                         
                     color_idx = global_colors.get(cd_mun, 0) % len(PASTEL_PALETTE)
                     gdf_filtered.at[idx, 'color'] = PASTEL_PALETTE[color_idx]
-                except (ValueError, KeyError):
-                    gdf_filtered.at[idx, 'color'] = PASTEL_PALETTE[0]
+                except (ValueError, KeyError, IndexError):
+                    pass # Mantém cor padrão #cccccc
             
             coloring_applied = True
         except Exception as e:
@@ -564,9 +583,10 @@ def render_map(gdf_filtered, title="Mapa", global_colors=None, graph=None, gdf_r
     if not coloring_applied:
         # Fallback: coloração simples por UTP
         utps_unique = gdf_filtered['utp_id'].dropna().unique()
-        colors = {utp: PASTEL_PALETTE[i % len(PASTEL_PALETTE)] 
-                 for i, utp in enumerate(sorted(utps_unique))}
-        gdf_filtered['color'] = gdf_filtered['utp_id'].map(colors)
+        if len(utps_unique) > 0 and len(PASTEL_PALETTE) > 0:
+            colors = {utp: PASTEL_PALETTE[i % len(PASTEL_PALETTE)] 
+                     for i, utp in enumerate(sorted(utps_unique))}
+            gdf_filtered['color'] = gdf_filtered['utp_id'].map(colors).fillna('#cccccc')
 
     
     # Criar mapa folium
@@ -685,8 +705,9 @@ def render_dashboard(manager):
     
     # === LOAD CONSOLIDATION CACHE ===
     consolidation_loader = ConsolidationLoader()
+    snapshot_loader = SnapshotLoader()
     
-    # === HEADER ===
+    # Flags de controle de fluxo (inicializa se não existir).columns([2, 1, 1])
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         st.title("GeoValida - Consolidação Territorial")
@@ -773,16 +794,7 @@ def render_dashboard(manager):
         st.markdown("### Consolidação")
         
         if consolidation_loader.is_executed():
-            summary = consolidation_loader.get_summary()
-            
-            # Verifica se houve mudanças ou não
-            if summary['total_consolidations'] > 0:
-                st.success("Consolidação em cache")
-                st.metric("Consolidações", summary['total_consolidations'])
-                st.metric("UTPs Reduzidas", f"{summary['unique_sources']} → {summary['unique_targets']}")
-            else:
-                st.info("Consolidação executada - nenhuma mudança necessária")
-                st.caption("Todos os municípios já estão corretamente organizados.")
+
             
             col1, col2 = st.columns(2)
             with col1:
@@ -844,13 +856,14 @@ def render_dashboard(manager):
     global_colors_initial = load_or_compute_coloring(gdf, "initial_coloring.json") if gdf is not None else {}
     
     # === TABS ===
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    # === TABS ===
+    tab1, tab2, tab3, tab4, tab_sedes, tab_borders = st.tabs([
         "Distribuição Inicial",
         "Pós-Consolidação",
         "Análise de Dependências",
         "Análise Interestadual",
-        "📋 Validação V7",
-        "🔀 Consolidações V8→V9"
+        "Consolidação Sedes",
+        "Validação de Fronteiras"
     ])
     
     # ==== TAB 1: DISTRIBUIÇÃO INICIAL ====
@@ -861,7 +874,10 @@ def render_dashboard(manager):
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Municípios", len(df_filtered), f"{len(df_municipios)} total")
+            # Usar contagem única de CDs para evitar contar shapefiles duplicados
+            total_unique = df_municipios['cd_mun'].nunique()
+            current_unique = df_filtered['cd_mun'].nunique()
+            st.metric("Municípios", current_unique, f"{total_unique} total")
         with col2:
             st.metric("UTPs", len(df_filtered['utp_id'].unique()), f"{len(utps_list)} total")
         with col3:
@@ -878,15 +894,25 @@ def render_dashboard(manager):
             help="Ativa/desativa a visualização dos contornos das Regiões Metropolitanas sobre o mapa de UTPs"
         )
         
-        if gdf is not None:
-            gdf_filtered = gdf[gdf['uf'].isin(selected_ufs)].copy()
+        # Tentar carregar snapshot do estado inicial (Step 1)
+        # Se não existir, usa o gdf base (que já é o inicial carregado dos inputs)
+        gdf_initial = snapshot_loader.get_geodataframe_for_step('step1', gdf)
+        gdf_display = gdf_initial if gdf_initial is not None else gdf
+
+        if gdf_display is not None:
+            gdf_filtered = gdf_display[gdf_display['uf'].isin(selected_ufs)].copy()
             if selected_utps:
                 gdf_filtered = gdf_filtered[gdf_filtered['utp_id'].isin(selected_utps)]
             
             st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_filtered)} Municípios")
             
             # Renderizar mapa com opção de mostrar contornos de RM
-            render_map(gdf_filtered, title="Distribuição por UTP", global_colors=global_colors_initial, 
+            # Se usou snapshot, as cores ja devem estar no gdf_display (se o snapshot tiver coloring)
+            # Mas o render_map usa global_colors_initial se fornecido.
+            # O snapshot step1 tem coloring? Sim, export_snapshot salva coloring se existir.
+            # Se global_colors_initial falhar/não bater, o render_map usa a coluna 'color' do GDF.
+            
+            render_map(gdf_filtered, title="Distribuição por UTP (Inicial)", global_colors=global_colors_initial, 
                        gdf_rm=gdf_rm, show_rm_borders=show_rm_borders)
         
         st.markdown("---")
@@ -953,18 +979,40 @@ def render_dashboard(manager):
                         st.error("Erro!")
         st.markdown("---")
         
+        
         if consolidation_loader.is_executed():
-            consolidations = consolidation_loader.get_consolidations()
-            stats_summary = consolidation_loader.get_summary()
+            # IMPORTANTE: Usar snapshot pós-unitárias (Steps 5+7) ao invés do resultado completo
+            # Isso garante que as consolidações de sedes NÃO apareçam nesta aba
+            post_unitary_consolidations = consolidation_loader.get_post_unitary_consolidations()
+            post_unitary_mapping = consolidation_loader.get_post_unitary_mapping()
             
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Consolidações", stats_summary['total_consolidations'])
-            with col2:
-                st.metric("UTPs Reduzidas", f"{stats_summary['unique_sources']} → {stats_summary['unique_targets']}")
-            with col3:
-                reduction = (stats_summary['unique_sources'] - stats_summary['unique_targets']) / stats_summary['unique_sources'] * 100
-                st.metric("% Redução", f"{reduction:.1f}%")
+            # Calcular estatísticas baseadas no snapshot pós-unitárias
+            # MUDANÇA CRÍTICA: Usar Snapshot Step 5 (Post-Unitary) direto
+            # Isso garante que vemos exatamente o que foi salvo
+            df_consolidated = snapshot_loader.get_snapshot_dataframe('step5')
+            if df_consolidated.empty:
+                # Fallback se snapshot nao existir (ainda nao rodou pipeline novo)
+                df_consolidated = consolidation_loader.apply_post_unitary_to_dataframe(df_filtered)
+            else:
+                # Filtrar DF do snapshot pelos filtros da UI se necessario (ex: UFs)
+                if selected_ufs:
+                     df_consolidated = df_consolidated[df_consolidated['cd_mun'].isin(df_filtered['cd_mun'])].copy()
+            
+            # === MÉTRICAS PADRONIZADAS ===
+            if not df_consolidated.empty:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    # Contagem única de municípios
+                    current_unique = df_consolidated['cd_mun'].nunique() if 'cd_mun' in df_consolidated.columns else len(df_consolidated)
+                    # Total depende do contexto, aqui usamos o filtered original como referência total ou o próprio consolidado
+                    total_unique = df_municipios['cd_mun'].nunique()
+                    st.metric("Municípios", current_unique, f"{total_unique} total")
+                with col2:
+                    current_utps = df_consolidated['utp_id'].nunique()
+                    st.metric("UTPs", current_utps, f"{len(utps_list)} total")
+                with col3:
+                    current_ufs = df_consolidated['uf'].nunique()
+                    st.metric("Estados", current_ufs, f"{len(ufs)} total")
             
             st.markdown("---")
             st.markdown("#### Mapa Pós-Consolidação")
@@ -976,14 +1024,16 @@ def render_dashboard(manager):
                 key='show_rm_tab2',
                 help="Ativa/desativa a visualização dos contornos das Regiões Metropolitanas sobre o mapa de UTPs"
             )
-            
-            # Aplicar consolidações ao dataframe
-            df_consolidated = consolidation_loader.apply_consolidations_to_dataframe(df_filtered)
-            
+
             if gdf is not None:
-                gdf_consolidated = consolidation_loader.apply_consolidations_to_dataframe(
-                    gdf[gdf['uf'].isin(selected_ufs)].copy()
-                )
+                # Tentar carregar GDF do snapshot
+                gdf_consolidated = snapshot_loader.get_geodataframe_for_step('step5', gdf[gdf['uf'].isin(selected_ufs)].copy())
+                
+                if gdf_consolidated is None:
+                    # Fallback
+                    gdf_consolidated = consolidation_loader.apply_post_unitary_to_dataframe(
+                        gdf[gdf['uf'].isin(selected_ufs)].copy()
+                    )
                 
                 if selected_utps:
                     gdf_consolidated = gdf_consolidated[
@@ -992,20 +1042,57 @@ def render_dashboard(manager):
                 
                 st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_consolidated)} Municípios")
                 
-                # Calcular coloração CONSOLIDADA sobre o frame consolidado
-                colors_consolidated = load_or_compute_coloring(gdf_consolidated, "consolidated_coloring.json")
+                st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_consolidated)} Municípios")
+                
+                # Calcular coloração CONSOLIDADA sobre o frame consolidado (ou usar do snapshot)
+                # O snapshot loader já traz color_id. Podemos usar ele.
+                colors_consolidated = {}
+                
+                # Check if we have valid coloring in the snapshot
+                has_valid_coloring = False
+                if 'color_id' in gdf_consolidated.columns:
+                     unique_colors = gdf_consolidated['color_id'].unique()
+                     # If we have more than 1 color, OR if we have 1 color but it's not 0 (which is default/fallback)
+                     # actually 0 is a valid color index, but if ALL are 0, it's suspicious for a large map.
+                     if len(unique_colors) > 1:
+                         has_valid_coloring = True
+                     elif len(unique_colors) == 1 and unique_colors[0] != 0:
+                         has_valid_coloring = True
+                     
+                     if has_valid_coloring:
+                         for _, row in gdf_consolidated.iterrows():
+                             # Access CD_MUN safely (standardized in loader)
+                             col_name = 'CD_MUN' if 'CD_MUN' in row else 'cd_mun'
+                             colors_consolidated[int(row[col_name])] = int(row['color_id'])
+                
+                # Fallback: Load from external cache if snapshot coloring is missing or seems invalid (monochromatic 0)
+                if not has_valid_coloring:
+                     logging.warning("⚠️ Snapshot coloring seems invalid or missing. Loading from consolidated_coloring.json fallback.")
+                     colors_consolidated = load_or_compute_coloring(gdf_consolidated, "consolidated_coloring.json")
                 
                 # Renderizar mapa com opção de mostrar contornos de RM
-                render_map(gdf_consolidated, title="Distribuição Consolidada", graph=graph,
+                render_map(gdf_consolidated, title="Distribuição Consolidada (Snapshot)", graph=graph,
                           global_colors=colors_consolidated,
                           gdf_rm=gdf_rm, show_rm_borders=show_rm_borders_tab2)
             
             st.markdown("---")
             st.markdown("#### Registro de Consolidações")
+            st.caption("Consolidações de UTPs unitárias (Steps 5+7) - SEM incluir consolidação de sedes")
             
-            # Preparar dados para planilha
-            df_consolidations = consolidation_loader.export_as_dataframe()
-            st.dataframe(df_consolidations, width='stretch', hide_index=True)
+            # Preparar dados para planilha - USAR DADOS PÓS-UNITÁRIAS
+            if post_unitary_consolidations:
+                df_consolidations = pd.DataFrame([
+                    {
+                        "ID": i + 1,
+                        "UTP Origem": c["source_utp"],
+                        "UTP Destino": c["target_utp"],
+                        "Motivo": c.get("reason", "N/A"),
+                        "Data": c["timestamp"][:10],
+                        "Hora": c["timestamp"][11:19]
+                    }
+                    for i, c in enumerate(post_unitary_consolidations)
+                ])
+                st.dataframe(df_consolidations, width='stretch', hide_index=True)
             
             # Download do resultado
             result_json = json.dumps(consolidation_loader.result, ensure_ascii=False, indent=2)
@@ -1016,106 +1103,7 @@ def render_dashboard(manager):
                 mime="application/json"
             )
             
-            # === ANÁLISE DE QUALIDADE DAS UTPs ===
-            st.markdown("---")
-            st.markdown("#### Análise de Qualidade das UTPs")
-            st.caption("Identificação de problemas que podem requerer atenção adicional")
-            
-            # Análise de UTPs unitárias
-            df_unitary = analyze_unitary_utps(df_consolidated)
-            
-            # Análise de UTPs não-contíguas
-            non_contiguous = analyze_non_contiguous_utps(gdf_consolidated) if gdf is not None else {}
-            
-            # Métricas de qualidade
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                total_utps = df_consolidated['utp_id'].nunique()
-                st.metric("Total de UTPs", total_utps)
-            with col2:
-                unitary_count = len(df_unitary)
-                st.metric("UTPs Unitárias", unitary_count, 
-                         delta="Requer atenção" if unitary_count > 0 else "OK",
-                         delta_color="inverse")
-            with col3:
-                non_contiguous_count = len(non_contiguous)
-                st.metric("UTPs Não-Contíguas", non_contiguous_count,
-                         delta="Requer atenção" if non_contiguous_count > 0 else "OK",
-                         delta_color="inverse")
-            
-            # Detalhamento das UTPs Unitárias
-            if not df_unitary.empty:
-                st.markdown("---")
-                st.markdown("##### UTPs Unitárias")
-                st.caption(f"⚠️ {len(df_unitary)} UTP(s) com apenas 1 município")
-                
-                st.dataframe(
-                    df_unitary,
-                    width='stretch',
-                    hide_index=True
-                )
-                
-                st.info("""
-                **UTPs Unitárias** podem indicar:
-                - Municípios que não puderam ser consolidados devido a restrições
-                - Municípios com características muito distintas dos vizinhos
-                - Possíveis candidatos para nova rodada de consolidação
-                """)
-            else:
-                st.success("✅ Nenhuma UTP unitária encontrada")
-            
-            # Detalhamento das UTPs Não-Contíguas
-            if non_contiguous:
-                st.markdown("---")
-                st.markdown("##### UTPs com Municípios Não-Contíguos")
-                st.caption(f"⚠️ {len(non_contiguous)} UTP(s) com municípios geograficamente desconectados")
-                
-                # Criar tabela formatada
-                non_contiguous_data = []
-                for utp_id, info in non_contiguous.items():
-                    # Formatar componentes
-                    components_str = []
-                    for i, comp in enumerate(info['components'], 1):
-                        comp_munic = ", ".join(comp[:3])  # Primeiros 3 municípios
-                        if len(comp) > 3:
-                            comp_munic += f" (+{len(comp)-3})"
-                        components_str.append(f"Grupo {i}: {comp_munic}")
-                    
-                    non_contiguous_data.append({
-                        'UTP': utp_id,
-                        'Total Municípios': info['num_municipalities'],
-                        'Componentes Desconectados': info['num_components'],
-                        'Detalhes': " | ".join(components_str)
-                    })
-                
-                df_non_contiguous = pd.DataFrame(non_contiguous_data)
-                st.dataframe(
-                    df_non_contiguous,
-                    width='stretch',
-                    hide_index=True
-                )
-                
-                st.warning("""
-                **UTPs Não-Contíguas** indicam que alguns municípios da UTP estão geograficamente separados:
-                - Isso pode ser resultado de consolidações baseadas em fluxos funcionais
-                - Municípios podem ter forte relação funcional mas não compartilham fronteiras
-                - Considere revisar se a consolidação faz sentido do ponto de vista territorial
-                """)
-            else:
-                st.success("✅ Todas as UTPs são geograficamente contíguas")
-        
-        else:
-            st.info("Nenhuma consolidação em cache ainda.")
-            st.markdown("""
-            ### Como usar:
-            
-            1. **Execute a consolidação** via seu código (etapas 0-7)
-            2. **O arquivo `consolidation_result.json` será criado** em `data/`
-            3. **Recarregue o dashboard** (F5 ou refresh)
-            4. Os mapas comparativos aparecerão automaticamente
-            
-            O cache permanecerá enquanto você não clicar em "Limpar" na sidebar.
-            """)
+
     
     # ==== TAB 3: ANÁLISE DE DEPENDÊNCIAS ====
     with tab3:
@@ -1530,4 +1518,366 @@ def render_dashboard(manager):
             
             df_table_inter = pd.DataFrame(table_data).sort_values("Qtd. Municípios Fora do Estado da Sede", ascending=False)
             st.dataframe(df_table_inter, hide_index=True, width='stretch')
+
+
+    # ==== TAB CONSOLIDAÇÃO SEDES (NOVA) ====
+    with tab_sedes:
+        st.markdown("### <span class='step-badge step-final'>NOVO</span> Consolidação de Sedes", unsafe_allow_html=True)
+        st.markdown("Comparativo entre o cenário Pós-Limpeza (Base) e Pós-Consolidação de Sedes (Final).")
+        st.markdown("Nesta etapa, sedes dependentes (fluxo principal + 2h distância) são anexadas a sedes mais fortes.")
+        st.markdown("---")
+
+        # Verificar se existe resultado dedicado de Sedes
+        sede_executed = consolidation_loader.is_sede_executed()
+        
+        if sede_executed:
+             sede_result = consolidation_loader.get_sede_result()
+             sede_consolidations = sede_result.get('consolidations', [])
+             sede_mapping = sede_result.get('utps_mapping', {})
+             
+             if gdf is not None:
+                 # Filtrar GDF
+                 gdf_sliced = gdf[gdf['uf'].isin(selected_ufs)].copy()
+                 if selected_utps:
+                     gdf_sliced = gdf_sliced[gdf_sliced['utp_id'].isin(selected_utps)]
+                     
+                 # Aplicar consolidação TOTAL via Snapshot Step 6
+                 gdf_final = snapshot_loader.get_geodataframe_for_step('step6', gdf_sliced)
+                 
+                 if gdf_final is None:
+                     # Fallback
+                     gdf_final = consolidation_loader.apply_consolidations_to_dataframe(gdf_sliced, custom_mapping=total_mapping)
+                 
+                 # === MÉTRICAS PADRONIZADAS ===
+                 if not gdf_final.empty:
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        # Contagem única de municípios (coluna pode variar caixa dependendo da fonte, normalizar)
+                        col_cd = 'CD_MUN' if 'CD_MUN' in gdf_final.columns else 'cd_mun'
+                        current_unique = gdf_final[col_cd].astype(str).nunique()
+                        total_unique = df_municipios['cd_mun'].nunique()
+                        st.metric("Municípios", current_unique, f"{total_unique} total")
+                    with col2:
+                        current_utps = gdf_final['utp_id'].nunique()
+                        st.metric("UTPs", current_utps, f"{len(utps_list)} total")
+                    with col3:
+                        current_ufs = gdf_final['uf'].nunique()
+                        st.metric("Estados", current_ufs, f"{len(ufs)} total")
+                 
+                 st.markdown("---")
+
+                 # Renderizar
+                 # Tentar carregar coloração final específica se existir, senão usa a consolidada padrão
+                 colors_final = {}
+                 if 'color_id' in gdf_final.columns:
+                     for _, row in gdf_final.iterrows():
+                         col_name = 'CD_MUN' if 'CD_MUN' in row else 'cd_mun'
+                         colors_final[int(row[col_name])] = int(row['color_id'])
+                 else:
+                     colors_final = load_or_compute_coloring(gdf_final, "post_sede_coloring.json")
+
+                 render_map(gdf_final, title="Final (Snapshot)", 
+                           global_colors=colors_final, 
+                           gdf_rm=gdf_rm, show_rm_borders=True)
+             else:
+                 st.warning("Mapa indisponível")
+             
+             st.markdown("---")
+             # Tabela de Mudanças Específicas desta Etapa
+             st.markdown("#### Detalhes das Alterações de Sedes")
+             
+             # Criar tabela detalhada
+             changes_data = []
+             for c in sede_consolidations:
+                 # Detalhes estão em 'details'
+                 details = c.get('details', {})
+                 mun_id = details.get('mun_id')
+                 nm_mun = details.get('nm_mun', str(mun_id))
+                 
+                 changes_data.append({
+                     "Município": nm_mun,
+                     "UTP Origem": c['source_utp'],
+                     "UTP Destino": c['target_utp'],
+                     "Tipo": "Sede da UTP" if details.get('is_sede') else "Município Componente",
+                     "Motivo": c['reason']
+                 })
+             
+             st.dataframe(pd.DataFrame(changes_data), hide_index=True, width='stretch')
+
+        else:
+             st.info("Nenhuma consolidação de sedes encontrada.")
+             st.caption("Execute a Etapa 6 do pipeline e certifique-se que houve consolidações.")
+    
+    # ==== TAB BORDERS: VALIDAÇÃO DE FRONTEIRAS ====
+    with tab_borders:
+        st.markdown("### <span class='step-badge step-final'>STEP 8</span> Validação de Fronteiras", unsafe_allow_html=True)
+        st.markdown("Análise e refinamento iterativo de fronteiras entre UTPs baseado em fluxos principais.")
+        st.markdown("---")
+        
+        # Visualizar Mapa Snapshot Step 8
+        if gdf is not None:
+             gdf_borders = snapshot_loader.get_geodataframe_for_step('step8', gdf[gdf['uf'].isin(selected_ufs)].copy())
+             
+             if gdf_borders is not None:
+                 if selected_utps:
+                     gdf_borders = gdf_borders[gdf_borders['utp_id'].isin(selected_utps)]
+                     
+                 st.subheader("Estado Final Pós-Validação (Snapshot)")
+                 
+                 # === MÉTRICAS PADRONIZADAS (MOVIDO PARA CIMA DO MAPA) ===
+                 if not gdf_borders.empty:
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        col_cd = 'CD_MUN' if 'CD_MUN' in gdf_borders.columns else 'cd_mun'
+                        current_unique = gdf_borders[col_cd].astype(str).nunique()
+                        total_unique = df_municipios['cd_mun'].nunique()
+                        st.metric("Municípios", current_unique, f"{total_unique} total")
+                    with col2:
+                        current_utps = gdf_borders['utp_id'].nunique()
+                        st.metric("UTPs", current_utps, f"{len(utps_list)} total")
+                    with col3:
+                        current_ufs = gdf_borders['uf'].nunique()
+                        st.metric("Estados", current_ufs, f"{len(ufs)} total")
+                    
+                    st.markdown("---")
+                 
+                 colors_borders = {}
+                 if 'color_id' in gdf_borders.columns:
+                     for _, row in gdf_borders.iterrows():
+                         col_name = 'CD_MUN' if 'CD_MUN' in row else 'cd_mun'
+                         colors_borders[int(row[col_name])] = int(row['color_id'])
+                 
+                 render_map(gdf_borders, title="Validação Fronteiras (Snapshot)", 
+                           global_colors=colors_borders,
+                           gdf_rm=gdf_rm, show_rm_borders=True)
+                 st.markdown("---")
+        
+        # Carregar dados de validação de fronteiras
+        borders_json_path = Path(__file__).parent.parent.parent / "data" / "03_processed" / "border_validation_result.json"
+        
+        if borders_json_path.exists():
+            try:
+                with open(borders_json_path, 'r', encoding='utf-8') as f:
+                    borders_data = json.load(f)
+                
+                metadata = borders_data.get('metadata', {})
+                relocations = borders_data.get('relocations', [])
+                rejections = borders_data.get('rejections', [])
+                transitive_chains = borders_data.get('transitive_chains', [])
+                
+                # === MÉTRICAS PADRONIZADAS (REMOVIDO DAQUI) ===
+                # (Movido para cima do mapa)
+                
+                st.markdown("---")
+                
+                # === CADEIAS TRANSITIVAS ===
+                if transitive_chains:
+                    st.markdown("#### 🔗 Cadeias Transitivas Detectadas")
+                    st.caption(f"{len(transitive_chains)} cadeia(s) transitiva(s) resolvida(s)")
+                    
+                    for i, chain in enumerate(transitive_chains, 1):
+                        chain_str = " → ".join(chain['chain'])
+                        final_utp = chain['final_utp']
+                        st.info(f"**Cadeia {i}:** {chain_str} → **UTP {final_utp}**")
+                    
+                    st.markdown("---")
+                
+                # === TABS INTERNAS: REALOCAÇÕES VS REJEIÇÕES ===
+                subtab1, subtab2 = st.tabs(["Realocações", "Rejeições"])
+                
+                with subtab1:
+                    st.markdown("#### Municípios Realocados")
+                    
+                if relocations:
+                    # Preparar dados para tabela (Usando lista atual)
+                    relocations_df = pd.DataFrame([
+                        {
+                            "Município": r['mun_name'],
+                            "CD_MUN": r['mun_id'],
+                            "UTP Origem": r['utp_origem'],
+                            "UTP Destino": r['utp_destino'],
+                            "Iteração": r.get('iteration', 1),
+                            "Motivo": r.get('reason', 'N/A')
+                        }
+                        for r in relocations
+                    ])
+                else:
+                    # Tentar carregar HISTÓRICO da ConsolidationManager se a lista atual estiver vazia
+                    # Isso garante que a tabela mostre o histórico mesmo se a última execução foi limpa
+                    
+                    history_consolidations = consolidation_loader.get_consolidations()
+                    border_history = []
+                    
+                    for c in history_consolidations:
+                        # Identificar registros de validação de fronteira pelo "reason" ou "details"
+                        reason = str(c.get('reason', ''))
+                        details = c.get('details', {})
+                        
+                        if "Border validation" in reason or details.get('step') == 'border_validation':
+                             # Extrair dados do formato do ConsolidationManager
+                             mun_nm = details.get('municipality_name', str(details.get('municipality_id', 'Unknown')))
+                             
+                             border_history.append({
+                                "Município": mun_nm,
+                                "CD_MUN": details.get('municipality_id', 0),
+                                "UTP Origem": c['source_utp'],
+                                "UTP Destino": c['target_utp'],
+                                "Iteração": details.get('iteration', 1),
+                                "Motivo": reason
+                             })
+                    
+                    if border_history:
+                        relocations_df = pd.DataFrame(border_history)
+                        st.info(f"Mostrando histórico acumulado de {len(relocations_df)} realocações (execuções anteriores)")
+                    else:
+                        relocations_df = pd.DataFrame()
+
+                # Só renderizar se tiver dados (seja atual ou histórico)
+                if not relocations_df.empty:
+                        
+                    # Estatísticas
+                    st.markdown(f"**{len(relocations_df)} municípios realocados**")
+                        
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("UTPs Origem Únicas", relocations_df['UTP Origem'].nunique())
+                    with col2:
+                        st.metric("UTPs Destino Únicas", relocations_df['UTP Destino'].nunique())
+                    
+                    # Distribuição por iteração
+                    st.markdown("**Distribuição por Iteração:**")
+                    iter_counts = relocations_df['Iteração'].value_counts().sort_index()
+                    for iter_num, count in iter_counts.items():
+                        st.write(f"- Iteração {iter_num}: {count} realocações")
+                    
+                    st.markdown("---")
+                    st.markdown("**Detalhes:**")
+                    st.dataframe(relocations_df, hide_index=True, width='stretch', height=400)
+                    
+                    # Visualização no mapa
+                    if gdf is not None:
+                        st.markdown("---")
+                        st.markdown("#### Mapa de Municípios Realocados")
+                        
+                        # Destacar municípios realocados
+                        # Precisamos extrair IDs da tabela consolidada
+                        if 'CD_MUN' in relocations_df.columns:
+                             relocated_ids = set(relocations_df['CD_MUN'].unique())
+                             gdf_highlight = gdf[gdf['CD_MUN'].isin(relocated_ids)].copy()
+                             
+                             if not gdf_highlight.empty:
+                                 st.caption(f"Destacando {len(gdf_highlight)} municípios realocados")
+                                 
+                                 # Criar mapa básico
+                                 m = folium.Map(
+                                     location=[-15, -55],
+                                     zoom_start=4,
+                                     tiles="CartoDB positron"
+                                 )
+                                 
+                                 # Adicionar municípios realocados em destaque
+                                 folium.GeoJson(
+                                     gdf_highlight.to_json(),
+                                     style_function=lambda x: {
+                                         'fillColor': '#FF6B6B',
+                                         'color': '#C92A2A',
+                                         'weight': 2,
+                                         'fillOpacity': 0.7
+                                     },
+                                     tooltip=folium.GeoJsonTooltip(
+                                         fields=['NM_MUN', 'utp_id', 'uf'],
+                                         aliases=['Município:', 'UTP:', 'UF:']
+                                     )
+                                 ).add_to(m)
+                                 
+                                 # Fit bounds
+                                 if not gdf_highlight.empty:
+                                     bounds = gdf_highlight.total_bounds
+                                     m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
+                                 
+                                 map_html = m._repr_html_()
+                                 st.components.v1.html(map_html, height=500, scrolling=False)
+
+                else:
+                    if not relocations and not 'border_history' in locals():
+                         st.info("Nenhuma realocação foi realizada.")
+                         st.caption("Todas as fronteiras já estão otimizadas!")
+                
+                with subtab2:
+                    st.markdown("#### Propostas de Realocação Rejeitadas")
+                    
+                    if rejections:
+                        # Preparar dados para tabela
+                        rejections_df = pd.DataFrame([
+                            {
+                                "Município": r['mun_name'],
+                                "CD_MUN": r['mun_id'],
+                                "UTP Atual": r['utp_origem'],
+                                "UTP Proposta": r.get('proposed_utp', 'N/A'),
+                                "Motivo": r.get('reason', 'N/A'),
+                                "Detalhes": r.get('details', ''),
+                                "Iteração": r.get('iteration', 1)
+                            }
+                            for r in rejections
+                        ])
+                        
+                        st.markdown(f"**{len(rejections_df)} propostas rejeitadas**")
+                        
+                        # Análise de motivos
+                        st.markdown("**Distribuição de Motivos de Rejeição:**")
+                        reason_counts = rejections_df['Motivo'].value_counts()
+                        for reason, count in reason_counts.items():
+                            percentage = (count / len(rejections_df)) * 100
+                            st.write(f"- {reason}: {count} ({percentage:.1f}%)")
+                        
+                        st.markdown("---")
+                        st.markdown("**Detalhes:**")
+                        st.dataframe(rejections_df, hide_index=True, width='stretch', height=400)
+                    else:
+                        st.success("✅ Nenhuma rejeição! Todas as propostas foram aceitas.")
+                
+                # === DOWNLOAD ===
+                st.markdown("---")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Download JSON
+                    borders_json = json.dumps(borders_data, ensure_ascii=False, indent=2)
+                    st.download_button(
+                        label="Baixar Resultados (JSON)",
+                        data=borders_json,
+                        file_name=f"border_validation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        mime="application/json"
+                    )
+                
+                with col2:
+                    # Download CSV
+                    csv_path = Path(__file__).parent.parent.parent / "data" / "03_processed" / "border_validation_result.csv"
+                    if csv_path.exists():
+                        with open(csv_path, 'r', encoding='utf-8-sig') as f:
+                            csv_data = f.read()
+                        st.download_button(
+                            label="Baixar Resultados (CSV)",
+                            data=csv_data,
+                            file_name=f"border_validation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                            mime="text/csv"
+                        )
+                
+            except Exception as e:
+                st.error(f"Erro ao carregar dados de validação de fronteiras: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+        else:
+            st.warning("⚠️ Dados de validação de fronteiras não encontrados")
+            st.info("""
+            **Como gerar os dados:**
+            1. Execute o pipeline completo: `python main.py`
+            2. Ou execute apenas a consolidação: `python src/run_consolidation.py`
+            
+            O Step 8 (Validação de Fronteiras) será executado automaticamente e gerará os arquivos:
+            - `data/03_processed/border_validation_result.json`
+            - `data/03_processed/border_validation_result.csv`
+            """)
+
+
 

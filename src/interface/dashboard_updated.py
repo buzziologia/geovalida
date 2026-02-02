@@ -844,11 +844,13 @@ def render_dashboard(manager):
     global_colors_initial = load_or_compute_coloring(gdf, "initial_coloring.json") if gdf is not None else {}
     
     # === TABS ===
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    # === TABS ===
+    tab1, tab2, tab3, tab4, tab_sedes, tab5, tab6 = st.tabs([
         "Distribuição Inicial",
         "Pós-Consolidação",
         "Análise de Dependências",
         "Análise Interestadual",
+        "🏛️ Consolidação Sedes",
         "📋 Validação V7",
         "🔀 Consolidações V8→V9"
     ])
@@ -1530,5 +1532,117 @@ def render_dashboard(manager):
             
             df_table_inter = pd.DataFrame(table_data).sort_values("Qtd. Municípios Fora do Estado da Sede", ascending=False)
             st.dataframe(df_table_inter, hide_index=True, width='stretch')
+
+
+    # ==== TAB CONSOLIDAÇÃO SEDES (NOVA) ====
+    with tab_sedes:
+        st.markdown("### <span class='step-badge step-final'>NOVO</span> Consolidação de Sedes", unsafe_allow_html=True)
+        st.markdown("Comparativo entre o cenário Pós-Limpeza (Base) e Pós-Consolidação de Sedes (Final).")
+        st.markdown("Nesta etapa, sedes dependentes (fluxo principal + 2h distância) são anexadas a sedes mais fortes.")
+        st.markdown("---")
+
+        if consolidation_loader.is_executed():
+             all_cons = consolidation_loader.get_consolidations()
+             
+             # Separar consolidações (Sede Consolidation vs Outras)
+             # "Sede Consolidation" e "Orphan Cleanup" são parte desta etapa
+             sede_reasons = ["Sede Consolidation (Score/Flow)", "Orphan Cleanup"]
+             
+             base_cons = [c for c in all_cons if c.get('reason') not in sede_reasons]
+             sede_cons_only = [c for c in all_cons if c.get('reason') in sede_reasons]
+             
+             if not sede_cons_only:
+                 st.info("Nenhuma consolidação de sedes encontrada no histórico do cache atual.")
+                 st.caption("Verifique se o pipeline foi executado com a Etapa 6 habilitada.")
+             else:
+                 # Métricas da etapa
+                 col1, col2 = st.columns(2)
+                 with col1:
+                     st.metric("Consolidações de Sedes", len(sede_cons_only))
+                 with col2:
+                     # UTPs impactadas
+                     utps_orig = set(c['source_utp'] for c in sede_cons_only)
+                     utps_dest = set(c['target_utp'] for c in sede_cons_only)
+                     st.metric("UTPs Impactadas", len(utps_orig.union(utps_dest)))
+                 
+                 st.markdown("---")
+                 
+                 # Computar mapeamentos
+                 # Base: tudo MENOS sedes
+                 mapping_base = consolidation_loader.compute_mapping_from_list(base_cons)
+                 # Final: tudo (estado atual)
+                 mapping_final = consolidation_loader.get_utps_mapping() # ou compute_mapping_from_list(all_cons)
+                 
+                 # Preparar dados para visualização (DF e GDF)
+                 # Base
+                 df_base = consolidation_loader.apply_consolidations_to_dataframe(df_filtered, custom_mapping=mapping_base)
+                 
+                 # Final
+                 df_final = consolidation_loader.apply_consolidations_to_dataframe(df_filtered, custom_mapping=mapping_final)
+                 
+                 # Visualização Lado a Lado
+                 col_left, col_right = st.columns(2)
+                 
+                 with col_left:
+                     st.subheader("Antes (Pós-Limpeza)")
+                     if gdf is not None:
+                         # Filtrar GDF
+                         gdf_sliced = gdf[gdf['uf'].isin(selected_ufs)].copy()
+                         if selected_utps:
+                             gdf_sliced = gdf_sliced[gdf_sliced['utp_id'].isin(selected_utps)]
+                             
+                         # Aplicar consolidação BASE
+                         gdf_base = consolidation_loader.apply_consolidations_to_dataframe(gdf_sliced, custom_mapping=mapping_base)
+                         
+                         # Renderizar
+                         # Nota: Usando 'base_coloring' temporário
+                         render_map(gdf_base, title="Base", 
+                                   global_colors=load_or_compute_coloring(gdf_base, "base_coloring_temp.json"),
+                                   gdf_rm=gdf_rm, show_rm_borders=True)
+                     else:
+                         st.warning("Mapa indisponível")
+                         st.dataframe(df_base[['utp_id', 'nm_mun', 'sede_utp']].head())
+
+                 with col_right:
+                     st.subheader("Depois (Pós-Sedes)")
+                     if gdf is not None:
+                         # Já filtramos gdf_sliced acima
+                         # Aplicar consolidação FINAL
+                         gdf_final = consolidation_loader.apply_consolidations_to_dataframe(gdf_sliced, custom_mapping=mapping_final)
+                         
+                         # Renderizar
+                         render_map(gdf_final, title="Final", 
+                                   global_colors=load_or_compute_coloring(gdf_final, "consolidated_coloring.json"),
+                                   gdf_rm=gdf_rm, show_rm_borders=True)
+                     else:
+                         st.warning("Mapa indisponível")
+                         st.dataframe(df_final[['utp_id', 'nm_mun', 'sede_utp']].head())
+                 
+                 st.markdown("---")
+                 # Tabela de Mudanças
+                 st.markdown("#### Detalhes das Alterações")
+                 
+                 # Criar tabela detalhada
+                 changes_data = []
+                 for c in sede_cons_only:
+                     # Buscar nomes
+                     # Nota: source_utp é ID. Precisamos saber quem era a sede ou o mun movido.
+                     # Detalhes estão em 'details'
+                     details = c.get('details', {})
+                     mun_id = details.get('mun_id')
+                     nm_mun = details.get('nm_mun', str(mun_id))
+                     
+                     changes_data.append({
+                         "Município": nm_mun,
+                         "UTP Origem": c['source_utp'],
+                         "UTP Destino": c['target_utp'],
+                         "Tipo": "Sede Inteira" if details.get('sede_migration') else "Município Isolado",
+                         "Motivo": c['reason']
+                     })
+                 
+                 st.dataframe(pd.DataFrame(changes_data), hide_index=True, width='stretch')
+
+        else:
+             st.info("Nenhuma consolidação encontrada.")
 
 

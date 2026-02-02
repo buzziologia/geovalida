@@ -21,7 +21,8 @@ class UTPConsolidator:
         """
         self.logger.info("Passo 5: Iniciando consolidação funcional recursiva...")
         
-        # Limpa o log de consolidação para esta nova execução
+        # Reload manager (Step 5 is the first consolidation step, so we clear LOG here)
+        self.consolidation_manager = ConsolidationManager()
         self.consolidation_manager.clear_log()
         self.logger.info("Log de consolidação limpo para nova execução.")
         
@@ -53,6 +54,7 @@ class UTPConsolidator:
         total_changes = changes_com_rm + changes_sem_rm
         self.logger.info(f"Passo 5 concluído: {total_changes} consolidações realizadas.")
         return total_changes
+
 
     def _consolidate_with_rm(self, flow_df: pd.DataFrame, gdf: gpd.GeoDataFrame, map_gen: Any) -> int:
         """Consolida UTPs unitárias que pertencem a alguma RM.
@@ -324,6 +326,9 @@ class UTPConsolidator:
         """
         self.logger.info("Passo 7: Iniciando consolidação territorial (REGIC + Geografia)...")
         
+        # Reload manager to sync with disk (Step 5 + Step 6 changes)
+        self.consolidation_manager = ConsolidationManager()
+        
         if gdf is None or gdf.empty:
             self.logger.info("Sem dados geográficos para limpeza territorial.")
             return 0
@@ -432,6 +437,16 @@ class UTPConsolidator:
                 
                 consumed.add(move['origin_utp'])
                 changes_in_round += 1
+
+                # ATUALIZAÇÃO CRÍTICA DO GDF:
+                # Atualizar coluna UTP_ID no GDF para refletir a mudança imediatamente.
+                if gdf is not None and 'UTP_ID' in gdf.columns:
+                    # Converter IDs para garantir match
+                    mun_id_str = str(move['mun_id'])
+                    # Localizar por CD_MUN (convertendo para str para garantir)
+                    mask = gdf['CD_MUN'].astype(str) == mun_id_str
+                    if mask.any():
+                        gdf.loc[mask, 'UTP_ID'] = str(move['target_utp'])
             
             if changes_in_round == 0:
                 break
@@ -440,6 +455,29 @@ class UTPConsolidator:
             iteration += 1
         
         self.logger.info(f"Passo 7 concluído: {total_changes} consolidações realizadas.")
+        
+        # NOVO: Salvar coloração após Step 7 (unitárias)
+        self.logger.info("\n🎨 Gerando coloração pós-consolidação de unitárias...")
+        try:
+            coloring = self.graph.compute_graph_coloring(gdf)
+            
+            from pathlib import Path
+            import json
+            
+            data_dir = Path(__file__).parent.parent.parent / "data" / "03_processed"
+            data_dir.mkdir(parents=True, exist_ok=True)
+            
+            coloring_file = data_dir / "post_unitary_coloring.json"
+            coloring_str_keys = {str(k): v for k, v in coloring.items()}
+            
+            with open(coloring_file, 'w') as f:
+                json.dump(coloring_str_keys, f, indent=2)
+            
+            self.logger.info(f"💾 Coloração pós-unitárias salva em: {coloring_file}")
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️ Erro ao salvar coloração pós-unitárias: {e}")
+        
         return total_changes
 
     def _get_unitary_non_rm_utps(self) -> list:

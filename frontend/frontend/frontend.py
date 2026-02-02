@@ -11,8 +11,6 @@ class State(rx.State):
 
 
 def index() -> rx.Component:
-    # Welcome Page (Index)
-    # Welcome Page (Index)
     return rx.hstack(
         sidebar(),
         rx.container(

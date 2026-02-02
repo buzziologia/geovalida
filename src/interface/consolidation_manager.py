@@ -148,3 +148,28 @@ class ConsolidationManager:
             }
             for c in consolidations
         ])
+
+    def save_sede_batch(self, consolidations: List[Dict]):
+        """
+        Salva um lote de consolidações especificamente no arquivo de resultado de sedes via ConsolidationLoader.
+        """
+        from src.interface.consolidation_loader import ConsolidationLoader
+        
+        loader = ConsolidationLoader()
+        
+        # Criar estrutura de resultado
+        mapping = {}
+        for cons in consolidations:
+            mapping[cons["source_utp"]] = cons["target_utp"]
+            
+        result_data = {
+            "version": "1.0",
+            "status": "executed",
+            "timestamp_created": datetime.now().isoformat(),
+            "timestamp_last_updated": datetime.now().isoformat(),
+            "total_consolidations": len(consolidations),
+            "utps_mapping": mapping,
+            "consolidations": consolidations
+        }
+        
+        loader.save_sede_result(result_data)

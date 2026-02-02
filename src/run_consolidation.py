@@ -5,6 +5,7 @@ Script para executar a consolidação de UTPs e gerar o cache
 Execute com: python src/run_consolidation.py
 """
 import sys
+import json
 from pathlib import Path
 
 # Adicionar raiz do projeto ao path
@@ -78,14 +79,113 @@ def run_consolidation():
         except Exception as e:
             logger.warning(f"⚠️ Erro na limpeza territorial: {e}")
             changes_7 = 0
+
+        # 6.5. Salvar snapshot pós-consolidação de unitárias (ANTES da consolidação de sedes)
+        logger.info("\n📸 Salvando snapshot pós-consolidação de unitárias...")
+        try:
+            # Carregar consolidations até este ponto (Steps 5 + 7)
+            consolidation_manager_snapshot = ConsolidationManager()
+            
+            # Criar loader e atualizar com dados até Step 7
+            snapshot_loader = ConsolidationLoader()
+            snapshot_loader.update_from_log(consolidation_manager_snapshot.log_data)
+            
+            # Salvar em arquivo separado
+            post_unitary_path = Path(project_root) / "data" / "post_unitary_consolidation.json"
+            with open(post_unitary_path, 'w', encoding='utf-8') as f:
+                json.dump(snapshot_loader.result, f, ensure_ascii=False, indent=2)
+            
+            logger.info(f"✅ Snapshot salvo em: {post_unitary_path}")
+            logger.info(f"   📊 {snapshot_loader.result['total_consolidations']} consolidações (Steps 5+7)")
+
+            # --- GERAÇÃO DE CACHE DE COLORAÇÃO (PÓS-UNITÁRIAS) ---
+            logger.info("   🎨 Gerando cache de coloração pós-unitárias (consolidated_coloring.json)...")
+            try:
+                # Sincronizar mapa com estado atual do grafo (Steps 5+7)
+                manager.map_generator.sync_with_graph(manager.graph)
+                gdf_step_5_7 = manager.map_generator.gdf_complete
+                
+                if gdf_step_5_7 is not None and not gdf_step_5_7.empty:
+                    # Garantir coluna UTP_ID
+                    if 'utp_id' in gdf_step_5_7.columns and 'UTP_ID' not in gdf_step_5_7.columns:
+                        gdf_step_5_7['UTP_ID'] = gdf_step_5_7['utp_id']
+                    
+                    # Calcular cores
+                    coloring_5_7 = manager.graph.compute_graph_coloring(gdf_step_5_7)
+                    
+                    # Salvar
+                    coloring_path_5_7 = Path(project_root) / "data" / "consolidated_coloring.json"
+                    with open(coloring_path_5_7, "w") as f:
+                        json.dump(coloring_5_7, f)
+                    logger.info(f"   ✅ Cache de coloração salvo: {len(coloring_5_7)} municípios")
+                else:
+                    logger.warning("   ⚠️ GDF vazio, pulando coloração.")
+            except Exception as e_color:
+                logger.warning(f"   ⚠️ Erro ao gerar coloração: {e_color}")
+            # --------------------------------------------------------
+
+        except Exception as e:
+            logger.warning(f"⚠️ Erro ao salvar snapshot pós-unitárias: {e}")
+
+        # 7. Consolidação de Sedes (Nova Etapa)
+        logger.info("\n7️⃣ Etapa 6: Consolidação de Sedes (SedeConsolidator)...")
+        try:
+            changes_sedes = manager.step_6_consolidate_sedes()
+            logger.info(f"✅ {changes_sedes} consolidações de sedes realizadas!")
+            
+            # --- GERAÇÃO DE CACHE DE COLORAÇÃO (PÓS-SEDES) ---
+            if changes_sedes > 0: # Otimização: calcular apenas se houve mudanças, mas para garantir consistência melhor calcular sempre
+                logger.info("   🎨 Gerando cache de coloração pós-sedes (post_sede_coloring.json)...")
+                try:
+                    # Sincronizar mapa com estado atual do grafo (Step 6)
+                    manager.map_generator.sync_with_graph(manager.graph)
+                    gdf_step_6 = manager.map_generator.gdf_complete
+                    
+                    if gdf_step_6 is not None and not gdf_step_6.empty:
+                        if 'utp_id' in gdf_step_6.columns and 'UTP_ID' not in gdf_step_6.columns:
+                            gdf_step_6['UTP_ID'] = gdf_step_6['utp_id']
+                        
+                        coloring_6 = manager.graph.compute_graph_coloring(gdf_step_6)
+                        
+                        coloring_path_6 = Path(project_root) / "data" / "post_sede_coloring.json"
+                        with open(coloring_path_6, "w") as f:
+                            json.dump(coloring_6, f)
+                        logger.info(f"   ✅ Cache de coloração salvo: {len(coloring_6)} municípios")
+                except Exception as e_color:
+                    logger.warning(f"   ⚠️ Erro ao gerar coloração sedes: {e_color}")
+            # ----------------------------------------------------
+
+        except Exception as e:
+            logger.warning(f"⚠️ Erro na consolidação de sedes: {e}")
+            changes_sedes = 0
+            import traceback
+            logger.error(traceback.format_exc())
+
+        # 8. Validação de Fronteiras (Etapa 8)
+        logger.info("\n8️⃣ Etapa 8: Validação de Fronteiras...")
+        try:
+            changes_borders = manager.step_8_border_validation()
+            logger.info(f"✅ {changes_borders} realocações de fronteira realizadas!")
+        except Exception as e:
+            logger.warning(f"⚠️ Erro na validação de fronteiras: {e}")
+            changes_borders = 0
+            import traceback
+            logger.error(traceback.format_exc())
         
-        total_changes = changes_5 + changes_7
+        # Sanitize returns
+        changes_5 = changes_5 or 0
+        changes_7 = changes_7 or 0
+        changes_sedes = changes_sedes or 0
+        changes_borders = changes_borders or 0
+        
+        total_changes = changes_5 + changes_7 + changes_sedes + changes_borders
+        logger.info(f"✅ Total: {total_changes} (Step 5: {changes_5}, Step 6: {changes_sedes}, Step 7: {changes_7}, Step 8: {changes_borders})")
         
         # 7. Obter consolidation_manager do consolidator
         logger.info(f"\n7️⃣ Salvando {total_changes} consolidações em cache...")
         
-        # O consolidation_manager já está preenchido pelas chamadas ao consolidator
-        consolidation_manager = manager.consolidator.consolidation_manager
+        # Carregar o log completo do disco (incluindo Step 5, 7 e Sede)
+        consolidation_manager = ConsolidationManager()
         
         # 8. Atualizar cache do loader
         logger.info("\n8️⃣ Atualizando cache de consolidação...")
@@ -97,11 +197,55 @@ def run_consolidation():
         logger.info("\n9️⃣ Executando análise de dependências...")
         try:
             from src.pipeline.sede_analyzer import SedeAnalyzer
-            from pathlib import Path
+            # Imports moved to top
+            # from pathlib import Path
             
-            # Criar analisador com dados consolidados
+            # Criar analisador
             analyzer = SedeAnalyzer(consolidation_loader=consolidation_loader)
             
+            # --- CRITICAL FIX: INJECT CURRENT STATE ---
+            # Instead of letting analyzer reload from initialization.json (which is old),
+            # we construct the dataframe representing the PRESENT state (after Step 8).
+            
+            # 1. Get base socioeconomic data
+            df_base = manager.municipios_data.copy()
+            
+            # 2. Get current territorial state (UTP_IDs corrected by Step 8)
+            # We use manager.graph to be sure, or gdf_complete
+            current_state = []
+            for cd_mun in df_base['cd_mun']:
+                # Get current UTP from graph
+                utp_id = manager.graph.get_municipality_utp(cd_mun)
+                
+                # Get sede status from graph
+                is_sede = False
+                if manager.graph.hierarchy.has_node(cd_mun):
+                    is_sede = manager.graph.hierarchy.nodes[cd_mun].get('sede_utp', False)
+                
+                current_state.append({
+                    'cd_mun': cd_mun,
+                    'utp_id_step9': utp_id,
+                    'sede_utp_step9': is_sede
+                })
+            
+            df_state = pd.DataFrame(current_state)
+            
+            # 3. Merge to update UTP_ID and SEDE_UTP
+            # We assume cd_mun is unique INT in both
+            df_final = df_base.merge(df_state, on='cd_mun', how='left')
+            
+            # Overwrite columns
+            df_final['utp_id'] = df_final['utp_id_step9'].fillna(df_final['utp_id'])
+            df_final['sede_utp'] = df_final['sede_utp_step9'].fillna(df_final['sede_utp'])
+            
+            # Drop temp columns
+            df_final.drop(columns=['utp_id_step9', 'sede_utp_step9'], inplace=True)
+            
+            # 4. Inject into analyzer
+            analyzer.df_municipios = df_final
+            logger.info(f"   💉 Injected current state into SedeAnalyzer: {len(df_final)} municipalities")
+            # ------------------------------------------
+
             # Executar análise
             sede_summary = analyzer.analyze_sede_dependencies()
             
@@ -123,9 +267,10 @@ def run_consolidation():
         # 10. Gerar Cache de Coloração do Mapa (Otimização de Startup)
         logger.info("\n🔟 Gerando cache de coloração do mapa...")
         try:
-            import json
+            # import json (moved to top)
             
-            # Usar o GDF completo do map_generator
+            # 11. Gerar Cache de Coloração do Mapa (Final - Pós-Validação)
+            manager.map_generator.sync_with_graph(manager.graph) # <--- FIX: Sincronizar após Step 8
             gdf_complete = manager.map_generator.gdf_complete
             
             if gdf_complete is not None and not gdf_complete.empty:
