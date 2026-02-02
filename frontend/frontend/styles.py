@@ -6,8 +6,6 @@ import reflex as rx
     
 """
 
-
-
 # Paleta de cores para o mapa
 MAPA_COLOR = {
     "sede_contorno": "#2D2D2D",
@@ -27,9 +25,14 @@ PAGE_COLOR = {
     "azul_bandeira":    "#0C326F",
     "amarelo_brasil":   "EACD04",
     "bg":               "F2F2F2",
-    "mapa_bg":          "#E5E5E5"
-    "branco":           "#FFFFFF"
+    "mapa_bg":          "#E5E5E5",
+    "branco":           "#FFFFFF",
+    "cinza_sidebar":    "#F8FAFB"
 }
+
+
+
+
 
 # Paleta de cores para o texto
 TEXT_COLOR = {
@@ -39,3 +42,7 @@ TEXT_COLOR = {
     "azul_bandeira":    "#0C326F",
     "amarelo_brasil":   "EACD04",
 }
+
+
+# Fontes
+TEXT_FONT = "Noto Sans Devanagari"

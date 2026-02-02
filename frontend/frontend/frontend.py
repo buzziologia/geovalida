@@ -1,39 +1,20 @@
-"""Welcome to Reflex! This file outlines the steps to create a basic app."""
-
 import reflex as rx
-
-from rxconfig import config
+from .pages.login import login
+from .components.header import header
 from .components.sidebar import sidebar
 
+app = rx.App(
+    stylesheets=[
+        "https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&display=swap",
+    ],
+)
 
-class State(rx.State):
-    """The app state."""
 
-
-def index() -> rx.Component:
-    return rx.hstack(
-        sidebar(),
-        rx.container(
-            rx.color_mode.button(position="top-right"),
-            rx.vstack(
-                rx.heading("Welcome to Reflex!", size="9"),
-                rx.text(
-                    "Get started by editing ",
-                    rx.code(f"{config.app_name}/{config.app_name}.py"),
-                    size="5",
-                ),
-                rx.link(
-                    rx.button("Check out our docs!"),
-                    href="https://reflex.dev/docs/getting-started/introduction/",
-                    is_external=True,
-                ),
-                spacing="5",
-                justify="center",
-                min_height="85vh",
-            ),
-        )
+def rascunho():
+    return rx.center(
+        sidebar(), # O componente que você quer testar
+        width="100%",
+        height="100vh",
+        bg="gray" # Um fundo diferente pra destacar
     )
-
-
-app = rx.App()
-app.add_page(index)
+app.add_page(rascunho, route="/teste")
