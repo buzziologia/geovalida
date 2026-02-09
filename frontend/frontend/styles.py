@@ -23,8 +23,8 @@ MAPA_COLOR = {
 PAGE_COLOR = {
     "azul_brasil":      "#071D41",
     "azul_bandeira":    "#0C326F",
-    "amarelo_brasil":   "EACD04",
-    "bg":               "F2F2F2",
+    "amarelo_brasil":   "#EACD04",
+    "bg":               "#F2F2F2",
     "mapa_bg":          "#E5E5E5",
     "branco":           "#FFFFFF",
     "cinza_sidebar":    "#F8FAFB"

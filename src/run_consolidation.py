@@ -6,6 +6,7 @@ Execute com: python src/run_consolidation.py
 """
 import sys
 import json
+import pandas as pd
 from pathlib import Path
 
 # Adicionar raiz do projeto ao path

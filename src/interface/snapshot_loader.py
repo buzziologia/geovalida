@@ -18,7 +18,7 @@ class SnapshotLoader:
             "step1": self.data_dir / "snapshot_step1_initial.json",
             "step5": self.data_dir / "snapshot_step5_post_unitary.json",
             "step6": self.data_dir / "snapshot_step6_sede_consolidation.json",
-            "step8": self.data_dir / "snapshot_step8_border_validation.json"
+            "step8": self.data_dir / "snapshot_step8_final.json"  # Uses final snapshot (includes 8.1 + 8.5)
         }
     
     def load_snapshot(self, step_key: str) -> Dict:
@@ -157,7 +157,7 @@ class SnapshotLoader:
                     gdf_merged['uf'] = gdf_merged['SIGLA']
                 elif 'SIGLA_UF' in gdf_merged.columns:
                     gdf_merged['uf'] = gdf_merged['SIGLA_UF']
-                 
+                  
         except Exception as e:
             logging.error(f"❌ Error deriving metadata in SnapshotLoader: {e}. Columns: {gdf_merged.columns.tolist()}")
             # Create empty columns to avoid crash downstream
@@ -167,3 +167,58 @@ class SnapshotLoader:
                     gdf_merged[c] = "ERRO"
         
         return gdf_merged
+    
+    def get_complete_dataframe_with_flows(self, step_key: str = 'step8') -> pd.DataFrame:
+        """
+        Returns a complete DataFrame with both snapshot UTP assignments and original flow data.
+        
+        The snapshot contains updated UTP assignments (from consolidations/validations)
+        but does NOT contain modal_matriz flow data. We need to merge:
+        - UTP assignments from snapshot (step8 = final state)
+        - Flow data (modal_matriz) from initialization.json (original, unchanged)
+        
+        Args:
+            step_key: Snapshot step to load ('step8' for border validation)
+            
+        Returns:
+            DataFrame with columns: cd_mun, nm_mun, utp_id (updated), sede_utp (updated),
+                                   regiao_metropolitana, uf, modal_matriz, + other original data
+        """
+        from src.utils import DataLoader
+        
+        # Load snapshot for updated UTP assignments
+        df_snapshot = self.get_snapshot_dataframe(step_key)
+        
+        if df_snapshot.empty:
+            logging.warning(f"⚠️ Snapshot {step_key} is empty, falling back to initialization.json")
+            return DataLoader.get_municipios_dataframe()
+        
+        # Load original data for flow information
+        df_original = DataLoader.get_municipios_dataframe()
+        
+        if df_original.empty:
+            logging.error("❌ Could not load initialization.json")
+            return pd.DataFrame()
+        
+        # Ensure consistent types for merge
+        df_snapshot['cd_mun'] = df_snapshot['cd_mun'].astype(str)
+        df_original['cd_mun'] = df_original['cd_mun'].astype(str)
+        
+        # Merge: Use snapshot UTP data, but keep all original columns (including modal_matriz)
+        # We'll update utp_id, sede_utp from snapshot, but keep everything else from original
+        df_merged = df_original.copy()
+        
+        # Update UTP-related columns from snapshot
+        snapshot_updates = df_snapshot[['cd_mun', 'utp_id', 'sede_utp']].copy()
+        
+        # Create a mapping to update the original dataframe
+        df_merged = df_merged.set_index('cd_mun')
+        snapshot_updates = snapshot_updates.set_index('cd_mun')
+        
+        # Update only the UTP-related columns
+        df_merged.update(snapshot_updates)
+        df_merged = df_merged.reset_index()
+        
+        logging.info(f"✅ Merged snapshot {step_key} with flow data: {len(df_merged)} municipalities")
+        
+        return df_merged

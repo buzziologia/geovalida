@@ -10,9 +10,11 @@ municipios = data.get('municipios', [])
 
 # Cidades para verificar
 cidades = {
-    2100055: "Açailândia",
-    2105302: "Imperatriz",
+    2905404: "Cairu",
+    2932903: "Valença",
+    2931202: "Taperoá",
 }
+
 
 print("=" * 80)
 print("ANÁLISE DE FLUXOS PRINCIPAIS")

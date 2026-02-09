@@ -14,6 +14,13 @@ from src.run_consolidation import run_consolidation
 from src.pipeline.sede_analyzer import SedeAnalyzer
 from src.interface.components import sede_comparison
 from src.core.graph import TerritorialGraph
+from src.interface.flow_utils import (
+    get_top_municipalities_in_utp,
+    get_top_destinations_for_municipality,
+    format_flow_popup_html,
+    get_municipality_total_flow
+)
+from src.interface.map_flow_render import render_map_with_flow_popups
 
 
 # ===== CONFIGURAÇÃO DA PÁGINA =====
@@ -261,6 +268,23 @@ def load_or_compute_coloring(gdf, cache_filename="initial_coloring.json"):
     return {}
 
 
+@st.cache_data(show_spinner="Calculando contornos estaduais...", hash_funcs={gpd.GeoDataFrame: id})
+def get_state_boundaries(gdf):
+    """
+    Calcula os contornos dos estados dissolvendo os municípios.
+    """
+    if gdf is None or gdf.empty:
+        return None
+        
+    try:
+        # Dissolver por UF
+        gdf_states = gdf[['uf', 'geometry']].dissolve(by='uf').reset_index()
+        return gdf_states
+    except Exception as e:
+        logging.error(f"Erro ao calcular contornos estaduais: {e}")
+        return None
+
+
 
 
 
@@ -506,198 +530,7 @@ def analyze_non_contiguous_utps(gdf):
     return non_contiguous
 
 
-def render_map(gdf_filtered, title="Mapa", global_colors=None, graph=None, gdf_rm=None, show_rm_borders=False):
-    """Função auxiliar para renderizar um mapa folium com coloração por grafo."""
-    if gdf_filtered is None or gdf_filtered.empty:
-        st.info("Nenhum dado para visualizar neste filtro.")
-        return
-    
-    gdf_filtered = gdf_filtered.copy()
-    
-    # Garantir índice único
-    gdf_filtered = gdf_filtered.reset_index(drop=True)
-    
-    # Inicializar coluna de cor com valor seguro padrão para evitar problemas no Folium
-    gdf_filtered['color'] = '#cccccc'
-    
-    # ESTRATÉGIA DE COLORAÇÃO
-    # 1. Se colors globais fornecidas (cacheado, rápido), usar.
-    # 2. Se grafo fornecido (dinâmico, lento), calcular.
-    # 3. Fallback: cores aleatórias por ID.
-    
-    coloring_applied = False
-    
-    if global_colors:
-        try:
-            # Mapear cores diretamente por município (cd_mun -> cor)
-            # A coloração global já considera UTPs vizinhas
-            for idx, row in gdf_filtered.iterrows():
-                try:
-                    # Tenta acessar CD_MUN ou cd_mun
-                    cd_mun_val = row.get('CD_MUN') if 'CD_MUN' in row else row.get('cd_mun')
-                    if cd_mun_val is None: continue
-                    
-                    cd_mun = int(cd_mun_val)
-                    if not PASTEL_PALETTE:
-                         raise ValueError("Paleta vazia")
-                         
-                    color_idx = global_colors.get(cd_mun, 0) % len(PASTEL_PALETTE)
-                    gdf_filtered.at[idx, 'color'] = PASTEL_PALETTE[color_idx]
-                except (ValueError, KeyError, IndexError):
-                    pass # Mantém cor padrão #cccccc
-            
-            coloring_applied = True
-        except Exception as e:
-            logging.warning(f"Erro ao aplicar coloração global: {e}")
-    
-    if not coloring_applied and graph is not None:
-        try:
-            # Preparar GeoDataFrame para coloração (precisa de UTP_ID e CD_MUN como int)
-            gdf_for_coloring = gdf_filtered.copy()
-            
-            # Garantir que CD_MUN existe e é inteiro
-            if 'CD_MUN' not in gdf_for_coloring.columns:
-                logging.warning("Coluna CD_MUN não encontrada, usando coloração simples")
-                raise ValueError("Missing CD_MUN")
-            
-            gdf_for_coloring['CD_MUN'] = gdf_for_coloring['CD_MUN'].astype(str)
-            gdf_for_coloring['UTP_ID'] = gdf_for_coloring['utp_id'].astype(str)
-            
-            # Calcular coloração usando algoritmo de grafo (Stateless)
-            coloring = graph.compute_graph_coloring(gdf_for_coloring)
-            
-            # Mapear cores diretamente por município (cd_mun -> cor)
-            for idx, row in gdf_filtered.iterrows():
-                try:
-                    cd_mun = int(row['CD_MUN'])
-                    color_idx = coloring.get(cd_mun, 0) % len(PASTEL_PALETTE)
-                    gdf_filtered.at[idx, 'color'] = PASTEL_PALETTE[color_idx]
-                except (ValueError, KeyError):
-                    gdf_filtered.at[idx, 'color'] = PASTEL_PALETTE[0]
-            
-            coloring_applied = True
-        
-        except Exception as e:
-            logging.warning(f"Erro ao aplicar coloração por grafo, usando fallback: {e}")
-            
-    if not coloring_applied:
-        # Fallback: coloração simples por UTP
-        utps_unique = gdf_filtered['utp_id'].dropna().unique()
-        if len(utps_unique) > 0 and len(PASTEL_PALETTE) > 0:
-            colors = {utp: PASTEL_PALETTE[i % len(PASTEL_PALETTE)] 
-                     for i, utp in enumerate(sorted(utps_unique))}
-            gdf_filtered['color'] = gdf_filtered['utp_id'].map(colors).fillna('#cccccc')
 
-    
-    # Criar mapa folium
-    m = folium.Map(
-        location=[-15, -55],
-        zoom_start=4,
-        tiles="CartoDB positron",
-        prefer_canvas=True,
-        control_scale=True
-    )
-    
-    # Fit bounds automáticos
-    if not gdf_filtered.empty:
-        bounds = gdf_filtered.total_bounds
-        m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]], padding=(0.05, 0.05))
-    
-    # Separar municípios regulares e sedes
-    gdf_members = gdf_filtered[~gdf_filtered['sede_utp']].copy()
-    gdf_seats = gdf_filtered[gdf_filtered['sede_utp']].copy()
-    
-    # Adicionar primeira camada: Municípios regulares
-    if not gdf_members.empty:
-        folium.GeoJson(
-            gdf_members.to_json(),
-            style_function=lambda x: {
-                'fillColor': x['properties'].get('color', '#cccccc'),
-                'color': '#ffffff',
-                'weight': 0.3,
-                'fillOpacity': 0.9
-            },
-            tooltip=folium.GeoJsonTooltip(
-                fields=['NM_MUN', 'utp_id', 'regiao_metropolitana', 'uf', 'nm_sede'],
-                aliases=['Município:', 'UTP:', 'RM:', 'UF:', 'Sede:'],
-                localize=True,
-                sticky=False
-            ),
-            popup=folium.GeoJsonPopup(
-                fields=['NM_MUN', 'CD_MUN', 'utp_id', 'regiao_metropolitana', 'uf', 'nm_sede'],
-                aliases=['Município', 'Código IBGE', 'UTP', 'RM', 'UF', 'Sede UTP']
-            )
-        ).add_to(m)
-    
-    # Adicionar segunda camada: Sedes com destaque
-    if not gdf_seats.empty:
-        folium.GeoJson(
-            gdf_seats.to_json(),
-            style_function=lambda x: {
-                'fillColor': x['properties'].get('color', '#cccccc'),
-                'color': '#000000',
-                'weight': 3.0,
-                'fillOpacity': 1.0
-            },
-            tooltip=folium.GeoJsonTooltip(
-                fields=['NM_MUN', 'utp_id', 'regiao_metropolitana', 'uf', 'nm_sede'],
-                aliases=['Município Sede:', 'UTP:', 'RM:', 'UF:', 'Sede:'],
-                localize=True,
-                sticky=False
-            ),
-            popup=folium.GeoJsonPopup(
-                fields=['NM_MUN', 'CD_MUN', 'utp_id', 'regiao_metropolitana', 'uf', 'nm_sede'],
-                aliases=['Município (SEDE)', 'Código IBGE', 'UTP', 'RM', 'UF', 'Sede UTP']
-            )
-        ).add_to(m)
-    
-    # Adicionar camada de contornos de Regiões Metropolitanas (opcional)
-    if show_rm_borders and gdf_rm is not None and not gdf_rm.empty:
-        logging.info(f"DEBUG RM: show_rm_borders={show_rm_borders}, gdf_rm rows={len(gdf_rm)}")
-        
-        try:
-            # Como gdf_rm já é derivado dos municípios, não precisamos de spatial join
-            # Precisamos apenas filtrar para as RMs que estão na área visível (ou intersecção com gdf_filtered)
-            
-            # Para otimizar, podemos filtrar apenas as RMs presentes nos municípios filtrados
-            rms_visible = gdf_filtered['regiao_metropolitana'].unique()
-            gdf_rm_filtered = gdf_rm[gdf_rm['regiao_metropolitana'].isin(rms_visible)].copy()
-            
-            if not gdf_rm_filtered.empty:
-                # Criar pane customizado para garantir que as bordas fiquem por cima
-                # z-index padrão de overlay é ~400. Usamos 450 para ficar acima.
-                folium.map.CustomPane("rm_borders", z_index=450).add_to(m)
-
-                for idx, row in gdf_rm_filtered.iterrows():
-                    nome_rm = row['regiao_metropolitana']
-                    uf = row['uf']
-                    num_municipios = row['count']
-                    
-                    tooltip_rm = f"RM: {nome_rm} ({uf}) - {num_municipios} municípios"
-                    
-                    folium.GeoJson(
-                        row.geometry,
-                        style_function=lambda x: {
-                            'fillColor': 'none',
-                            'color': '#FF0000',  # Vermelho para destacar
-                            'weight': 3,
-                            'fillOpacity': 0,
-                            'dashArray': '4, 4'  # Linha pontilhada
-                        },
-                        tooltip=tooltip_rm,
-                        name=f"RM: {nome_rm}",
-                        pane="rm_borders"
-                    ).add_to(m)
-                
-                logging.info(f"DEBUG RM: {len(gdf_rm_filtered)} contornos de RM adicionados")
-            else:
-                logging.info("DEBUG RM: Nenhuma RM relevante para os municípios filtrados")
-                
-        except Exception as e:
-            logging.error(f"Erro ao renderizar RMs: {e}")
-    
-    map_html = m._repr_html_()
-    st.components.v1.html(map_html, height=600, scrolling=False)
 
 
 def render_dashboard(manager):
@@ -731,6 +564,10 @@ def render_dashboard(manager):
         if df_municipios.empty:
             st.error("Falha ao carregar dados.")
             return
+        
+        # Garantir types consistentes
+        if 'utp_id' in df_municipios.columns:
+            df_municipios['utp_id'] = df_municipios['utp_id'].astype(str)
         
         # Filtro por UF
         ufs = sorted(df_municipios['uf'].unique().tolist())
@@ -789,36 +626,7 @@ def render_dashboard(manager):
         st.markdown("---")
         st.caption(f"Dados de: {metadata.get('timestamp', 'N/A')[:10]}")
         
-        # === SEÇÃO DE CONSOLIDAÇÃO ===
-        st.markdown("---")
-        st.markdown("### Consolidação")
-        
-        if consolidation_loader.is_executed():
 
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Rodar Agora", width='stretch', help="Executa o pipeline completo de consolidação (Fluxos + REGIC)"):
-                    with st.spinner("Executando pipeline..."):
-                        if run_consolidation():
-                            st.success("Sucesso!")
-                            st.rerun()
-                        else:
-                            st.error("Falha na execução.")
-            
-            with col2:
-                if st.button("Limpar Cache", width='stretch'):
-                    consolidation_loader.clear()
-                    st.rerun()
-        else:
-            st.warning("Nenhuma consolidação em cache")
-            if st.button("Executar Consolidação", width='stretch'):
-                with st.spinner("Executando pipeline..."):
-                    if run_consolidation():
-                        st.success("Sucesso!")
-                        st.rerun()
-                    else:
-                        st.error("Falha na execução.")
     
     # Aplicar filtros
     # Aplicar filtros
@@ -857,19 +665,24 @@ def render_dashboard(manager):
     
     # === TABS ===
     # === TABS ===
-    tab1, tab2, tab3, tab4, tab_sedes, tab_borders = st.tabs([
-        "Distribuição Inicial",
-        "Pós-Consolidação",
-        "Análise de Dependências",
-        "Análise Interestadual",
-        "Consolidação Sedes",
-        "Validação de Fronteiras"
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Versão 8.0 - Distribuição Inicial",
+        "Versão 8.1 - UTPs unitárias",
+        "Versão 8.2 - Dependência entre Sedes",
+        "Versão 8.3 - Centralização das Sedes"
     ])
     
     # ==== TAB 1: DISTRIBUIÇÃO INICIAL ====
     with tab1:
-        st.markdown("### <span class='step-badge step-initial'>INICIAL</span> Situação Atual", unsafe_allow_html=True)
-        st.markdown("Mapa da distribuição atual das UTPs antes da consolidação.")
+        st.markdown("### <span class='step-badge step-initial'>Versão 8.0</span> Distribuição Inicial", unsafe_allow_html=True)
+        st.markdown("""
+        **Antes da v8, o maior desafio era a integridade referencial. Com base no estudo da versão 7, foi possível identificar tais erros:**
+        
+        *   **Erros de Continuidade:** 3 UTPs não possuíram municípios conexos territorialmente, totalizando 24 municípios.
+        *   **Erros de Região Metropolitana:** 169 UTPs apresentavam discrepância entre as regiões metropolitanas, totalizando 2154 municípios.
+        
+        *Esta é configuração inicial considerada pela ferramenta, para as demais consolidações de versões.*
+        """)
         st.markdown("---")
         
         col1, col2, col3 = st.columns(3)
@@ -886,13 +699,22 @@ def render_dashboard(manager):
         st.markdown("---")
         st.markdown("#### Mapa Interativo")
         
-        # Controle de visualização de contornos de RM
-        show_rm_borders = st.checkbox(
-            "Mostrar contornos de Regiões Metropolitanas",
-            value=False,
-            key='show_rm_tab1',
-            help="Ativa/desativa a visualização dos contornos das Regiões Metropolitanas sobre o mapa de UTPs"
-        )
+        # Controle de visualização de contornos
+        col_ctrl1, col_ctrl2 = st.columns(2)
+        with col_ctrl1:
+            show_rm_borders = st.checkbox(
+                "Mostrar contornos de Regiões Metropolitanas",
+                value=False,
+                key='show_rm_tab1',
+                help="Ativa/desativa a visualização dos contornos das Regiões Metropolitanas"
+            )
+        with col_ctrl2:
+            show_state_borders = st.checkbox(
+                "Mostrar limites Estaduais",
+                value=False,
+                key='show_state_tab1',
+                help="Ativa/desativa a visualização dos limites dos Estados"
+            )
         
         # Tentar carregar snapshot do estado inicial (Step 1)
         # Se não existir, usa o gdf base (que já é o inicial carregado dos inputs)
@@ -904,16 +726,33 @@ def render_dashboard(manager):
             if selected_utps:
                 gdf_filtered = gdf_filtered[gdf_filtered['utp_id'].isin(selected_utps)]
             
-            st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_filtered)} Municípios")
-            
-            # Renderizar mapa com opção de mostrar contornos de RM
-            # Se usou snapshot, as cores ja devem estar no gdf_display (se o snapshot tiver coloring)
-            # Mas o render_map usa global_colors_initial se fornecido.
-            # O snapshot step1 tem coloring? Sim, export_snapshot salva coloring se existir.
-            # Se global_colors_initial falhar/não bater, o render_map usa a coluna 'color' do GDF.
-            
-            render_map(gdf_filtered, title="Distribuição por UTP (Inicial)", global_colors=global_colors_initial, 
-                       gdf_rm=gdf_rm, show_rm_borders=show_rm_borders)
+            # Preparar contornos de estado (filtrado pelos estados selecionados)
+            gdf_states_filtered = None
+            if show_state_borders and gdf is not None:
+                # Calcular globalmente os estados
+                gdf_all_states = get_state_boundaries(gdf)
+                if gdf_all_states is not None:
+                    # Filtrar apenas estados selecionados ou visíveis no filtro atual
+                    if selected_ufs:
+                        gdf_states_filtered = gdf_all_states[gdf_all_states['uf'].isin(selected_ufs)]
+                    else:
+                        gdf_states_filtered = gdf_all_states
+
+            # Renderizar mapa usando render_map_with_flow_popups
+            m = render_map_with_flow_popups(
+                gdf_filtered, 
+                df_municipios, 
+                title="Distribuição por UTP (Inicial)", 
+                global_colors=global_colors_initial, 
+                gdf_rm=gdf_rm, 
+                show_rm_borders=show_rm_borders,
+                show_state_borders=show_state_borders,
+                gdf_states=gdf_states_filtered,
+                PASTEL_PALETTE=PASTEL_PALETTE
+            )
+            if m:
+                map_html = m._repr_html_()
+                st.components.v1.html(map_html, height=600, scrolling=False)
         
         st.markdown("---")
         st.markdown("#### Resumo das UTPs")
@@ -965,10 +804,15 @@ def render_dashboard(manager):
     
     # ==== TAB 2: PÓS-CONSOLIDAÇÃO ====
     with tab2:
-        st.markdown("### <span class='step-badge step-final'>FINAL</span> Após Consolidação", unsafe_allow_html=True)
+        st.markdown("### <span class='step-badge step-final'>Versão 8.1</span> UTPs unitárias", unsafe_allow_html=True)
         col_title, col_btn = st.columns([3, 1])
         with col_title:
-            st.markdown("Mapa da distribuição após consolidação de UTPs unitárias e limpeza territorial.")
+            st.markdown("""
+            **O objetivo central é garantir que nenhum município permaneça isolado em uma UTP própria, a menos que não haja candidatos adjacentes válidos. O processo segue uma hierarquia de critérios:**
+            
+            1.  **Consolidação Funcional Orientada a Fluxos:** esta etapa utiliza a matriz OD para mover a UTP unitária para uma UTP vizinha com a qual possua maior iteração.
+            2.  **Consolidação Territorial de Último Recurso:** após as tentativas baseadas em fluxos, as UTPs unitárias remanescentes são resolvidas via REGIC com a UTP vizinha de maior importância.
+            """)
         with col_btn:
             if st.button("Rodar Pipeline", width='stretch', key="btn_tab_run"):
                 with st.spinner("Executando..."):
@@ -1018,12 +862,21 @@ def render_dashboard(manager):
             st.markdown("#### Mapa Pós-Consolidação")
             
             # Controle de visualização de contornos de RM
-            show_rm_borders_tab2 = st.checkbox(
-                "Mostrar contornos de Regiões Metropolitanas",
-                value=False,
-                key='show_rm_tab2',
-                help="Ativa/desativa a visualização dos contornos das Regiões Metropolitanas sobre o mapa de UTPs"
-            )
+            col_ctrl1, col_ctrl2 = st.columns(2)
+            with col_ctrl1:
+                show_rm_borders_tab2 = st.checkbox(
+                    "Mostrar contornos de Regiões Metropolitanas",
+                    value=False,
+                    key='show_rm_tab2',
+                    help="Ativa/desativa a visualização dos contornos das RMs"
+                )
+            with col_ctrl2:
+                show_state_borders_tab2 = st.checkbox(
+                    "Mostrar limites Estaduais",
+                    value=False,
+                    key='show_state_tab2',
+                    help="Ativa/desativa a visualização dos limites dos Estados"
+                )
 
             if gdf is not None:
                 # Tentar carregar GDF do snapshot
@@ -1039,10 +892,6 @@ def render_dashboard(manager):
                     gdf_consolidated = gdf_consolidated[
                         gdf_consolidated['utp_id'].isin(selected_utps)
                     ]
-                
-                st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_consolidated)} Municípios")
-                
-                st.subheader(f"{len(selected_ufs)} Estado(s) | {len(gdf_consolidated)} Municípios")
                 
                 # Calcular coloração CONSOLIDADA sobre o frame consolidado (ou usar do snapshot)
                 # O snapshot loader já traz color_id. Podemos usar ele.
@@ -1070,10 +919,31 @@ def render_dashboard(manager):
                      logging.warning("⚠️ Snapshot coloring seems invalid or missing. Loading from consolidated_coloring.json fallback.")
                      colors_consolidated = load_or_compute_coloring(gdf_consolidated, "consolidated_coloring.json")
                 
+                # Preparar contornos de estado
+                gdf_states_filtered = None
+                if show_state_borders_tab2 and gdf is not None:
+                    gdf_all_states = get_state_boundaries(gdf)
+                    if gdf_all_states is not None and selected_ufs:
+                        gdf_states_filtered = gdf_all_states[gdf_all_states['uf'].isin(selected_ufs)]
+                    else:
+                        gdf_states_filtered = gdf_all_states
+
                 # Renderizar mapa com opção de mostrar contornos de RM
-                render_map(gdf_consolidated, title="Distribuição Consolidada (Snapshot)", graph=graph,
-                          global_colors=colors_consolidated,
-                          gdf_rm=gdf_rm, show_rm_borders=show_rm_borders_tab2)
+                # Renderizar mapa (TAB 2: Pós Consolidação)
+                m = render_map_with_flow_popups(
+                    gdf_consolidated,
+                    df_municipios, 
+                    title="Distribuição Consolidada (Snapshot)", 
+                    global_colors=colors_consolidated,
+                    gdf_rm=gdf_rm, 
+                    show_rm_borders=show_rm_borders_tab2,
+                    show_state_borders=show_state_borders_tab2,
+                    gdf_states=gdf_states_filtered,
+                    PASTEL_PALETTE=PASTEL_PALETTE
+                )
+                if m:
+                    map_html = m._repr_html_()
+                    st.components.v1.html(map_html, height=600, scrolling=False)
             
             st.markdown("---")
             st.markdown("#### Registro de Consolidações")
@@ -1104,427 +974,37 @@ def render_dashboard(manager):
             )
             
 
-    
-    # ==== TAB 3: ANÁLISE DE DEPENDÊNCIAS ====
+
+        
+
+        
+
+
+
+            
+
+            
+
+                
+
+            
+
+
+                
+
+
+
+    # ==== TAB 3: CONSOLIDAÇÃO SEDES ====
     with tab3:
-        st.markdown("### <span class='step-badge step-final'>ANÁLISE</span> Dependências entre Sedes", unsafe_allow_html=True)
-        st.markdown("Análise sede-a-sede para identificar hierarquias e dependências entre UTPs usando dados socioeconômicos e fluxos.")
-        st.markdown("---")
+        st.markdown("### <span class='step-badge step-final'>Versão 8.2</span> Dependência entre Sedes", unsafe_allow_html=True)
+        st.markdown("""
+        **O objetivo desta etapa é fundir territórios quando a sede de uma UTP demonstra uma dependência funcional em relação a outra sede vizinha. Para que um UTP seja absorvida por outra, aplicamos quatro filtros sequenciais:**
         
-        # Carregar análise de dependências do cache JSON
-        @st.cache_data(show_spinner="Carregando análise de dependências...", hash_funcs={pd.DataFrame: id})
-        def load_sede_analysis_from_cache():
-            """
-            Carrega análise de dependências do JSON pré-processado.
-            
-            Retorna a tabela completa de origem-destino se disponível.
-            """
-            cache_file = Path(__file__).parent.parent.parent / "data" / "sede_analysis_cache.json"
-            
-            # Tentar carregar do cache
-            if cache_file.exists():
-                try:
-                    import json
-                    with open(cache_file, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                    
-                    # Reconstruir DataFrame do JSON
-                    df_raw = pd.DataFrame(data['sede_analysis'])
-                    
-                    # Carregar tabela completa se existir
-                    df_comprehensive = pd.DataFrame()
-                    if 'comprehensive_dependency_table' in data:
-                        df_comprehensive = pd.DataFrame(data['comprehensive_dependency_table'])
-                        logging.info(f"✅ Tabela completa carregada do cache: {len(df_comprehensive)} linhas")
-                    
-                    # Criar SedeAnalyzer temporário apenas para formatar tabela simples
-                    analyzer = SedeAnalyzer()
-                    analyzer.df_sede_analysis = df_raw
-                    df_display = analyzer.export_sede_comparison_table()
-                    
-                    logging.info(f"✅ Análise carregada do cache: {len(df_raw)} sedes")
-                    
-                    return data['summary'], df_display, df_raw, df_comprehensive
-                    
-                except Exception as e:
-                    logging.warning(f"⚠️ Erro ao carregar cache, executando análise: {e}")
-            
-            # Fallback: executar análise se cache não existir
-            logging.info("ℹ️ Cache não encontrado, executando análise...")
-            analyzer = SedeAnalyzer(consolidation_loader=consolidation_loader)
-            summary = analyzer.analyze_sede_dependencies()
-            
-            if summary.get('success'):
-                df_table = analyzer.export_sede_comparison_table()
-                # Tentar gerar tabela completa
-                df_comp = analyzer.export_comprehensive_dependency_table()
-                return summary, df_table, analyzer.df_sede_analysis, df_comp
-            else:
-                return summary, pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-        
-        # Carregar análise (do cache ou executar fallback)
-        # Carregar análise (do cache ou executar fallback)
-        try:
-            summary, df_display, df_raw, df_comprehensive = load_sede_analysis_from_cache()
-            
-            if summary.get('success'):
-                # === MÉTRICAS GERAIS ===
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    st.metric("Total de Sedes", summary['total_sedes'])
-                
-                with col2:
-                    st.metric("Alertas de Dependência", summary['total_alertas'])
-                
-                with col3:
-                    st.metric("População Total", f"{summary['populacao_total']:,}")
-                
-                with col4:
-                    st.metric("Sedes com Aeroporto", summary['sedes_com_aeroporto'])
-                
-                st.markdown("---")
-                
-                # === ALERTAS ===
-                sede_comparison.render_dependency_alerts(df_display)
-                
-
-                
-                st.markdown("---")
-                
-                # === FILTROS E TABELA ===
-                st.markdown("#### Tabela Comparativa de Sedes (Expandida)")
-                
-                # Filtros acima da tabela
-                col_filter1, col_filter2, col_filter3, col_filter4 = st.columns(4)
-                
-                with col_filter1:
-                    # Seletor de modo de visualização
-                    view_mode = st.radio(
-                        "Modo de Visualização",
-                        ["Individual", "Origem-Destino"],
-                        help="Individual: dados básicos. Origem-Destino: tabela completa expandida"
-                    )
-                
-                with col_filter2:
-                    show_alerts_only = st.checkbox("Apenas Alertas", value=False)
-                
-                with col_filter3:
-                    # Filtro por REGIC
-                    regic_options = ['Todos'] + sorted(df_raw[df_raw['regic'] != '']['regic'].unique().tolist())
-                    selected_regic = st.selectbox("Filtrar por REGIC", regic_options)
-                
-                with col_filter4:
-                    # Filtro por aeroporto
-                    filter_airport = st.selectbox("Filtrar Aeroporto", ["Todos", "Apenas com aeroporto", "Sem aeroporto"])
-                
-                # Renderizar tabela conforme modo selecionado
-                if view_mode == "Origem-Destino":
-                    # Usar dados abrangentes se disponíveis, senão calcular
-                    if not df_comprehensive.empty:
-                        df_origin_dest = df_comprehensive
-                    else:
-                        # Fallback: recalcular se não estiver no cache
-                        analyzer = SedeAnalyzer(consolidation_loader=consolidation_loader)
-                        analyzer.df_sede_analysis = df_raw
-                        df_origin_dest = analyzer.export_comprehensive_dependency_table()
-                    
-                    # Aplicar filtros ao dataframe origem-destino
-                    df_filtered_od = df_origin_dest.copy()
-                    
-                    if selected_regic != 'Todos':
-                        # Filtrar por REGIC de origem OU destino (usando novos nomes de coluna)
-                        # Nota: Verifica se colunas existem antes de filtrar para evitar erro em dados mistos
-                        col_orig = 'REGIC_ORIGEM' if 'REGIC_ORIGEM' in df_filtered_od.columns else 'Origem_REGIC'
-                        col_dest = 'REGIC_DESTINO' if 'REGIC_DESTINO' in df_filtered_od.columns else 'Destino_REGIC'
-                        
-                        mask = (df_filtered_od[col_orig] == selected_regic) | (df_filtered_od[col_dest] == selected_regic)
-                        df_filtered_od = df_filtered_od[mask]
-                    
-                    if filter_airport == "Apenas com aeroporto":
-                        col_orig = 'Aeroporto_Origem' if 'Aeroporto_Origem' in df_filtered_od.columns else 'Origem_Aeroporto'
-                        col_dest = 'Aeroporto_Destino' if 'Aeroporto_Destino' in df_filtered_od.columns else 'Destino_Aeroporto'
-                        
-                        # Filtrar onde origem OU destino tem aeroporto
-                        mask = (df_filtered_od[col_orig] == 'Sim') | (df_filtered_od[col_dest] == 'Sim')
-                        df_filtered_od = df_filtered_od[mask]
-                    elif filter_airport == "Sem aeroporto":
-                        col_orig = 'Aeroporto_Origem' if 'Aeroporto_Origem' in df_filtered_od.columns else 'Origem_Aeroporto'
-                        col_dest = 'Aeroporto_Destino' if 'Aeroporto_Destino' in df_filtered_od.columns else 'Destino_Aeroporto'
-                        
-                        # Filtrar onde AMBOS não têm aeroporto
-                        mask = (df_filtered_od[col_orig] == '') & (df_filtered_od[col_dest] == '')
-                        df_filtered_od = df_filtered_od[mask]
-                    
-                    # Renderizar tabela COMPLETA origem-destino
-                    sede_comparison.render_comprehensive_table(df_filtered_od, show_alerts_only)
-                    
-                    # Usar df_display original para gráficos (não filtramos no modo origem-destino)
-                    df_filtered_display = df_display.copy()
-                    
-                else:
-                    # Modo Individual (atual)
-                    # Aplicar filtros ao dataframe
-                    df_filtered_display = df_display.copy()
-                    df_filtered_raw = df_raw.copy()
-                    
-                    if selected_regic != 'Todos':
-                        mask = df_raw['regic'] == selected_regic
-                        df_filtered_display = df_display[mask]
-                        df_filtered_raw = df_raw[mask]
-                    
-                    if filter_airport == "Apenas com aeroporto":
-                        mask = df_display['Aeroporto'] == 'Sim'
-                        df_filtered_display = df_filtered_display[mask]
-                        df_filtered_raw = df_filtered_raw[df_raw['tem_aeroporto'] == True]
-                    elif filter_airport == "Sem aeroporto":
-                        mask = df_display['Aeroporto'] == ''
-                        df_filtered_display = df_filtered_display[mask]
-                        df_filtered_raw = df_filtered_raw[df_raw['tem_aeroporto'] == False]
-                    
-                    # Renderizar tabela individual
-                    sede_comparison.render_sede_table(df_filtered_display, show_alerts_only)
-                
-                st.markdown("---")
-                
-                # === VISUALIZAÇÕES ===
-                st.markdown("#### Análises Visuais")
-                
-                # Gráficos socioeconômicos (usa dados filtrados)
-                sede_comparison.render_socioeconomic_charts(df_filtered_display)
-                
-                st.markdown("---")
-                
-                # Distribuição REGIC
-                sede_comparison.render_regic_distribution(df_filtered_display)
-                
-                st.markdown("---")
-                
-                # === EXPORTAR DADOS ===
-                st.markdown("#### Exportar Dados")
-                
-                col_exp1, col_exp2 = st.columns(2)
-                
-                with col_exp1:
-                    # Download CSV da tabela
-                    csv = df_display.to_csv(index=False, encoding='utf-8-sig')
-                    st.download_button(
-                        label="Baixar Tabela (CSV)",
-                        data=csv,
-                        file_name=f"analise_sedes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
-                    )
-                
-                with col_exp2:
-                    # Download JSON dos alertas
-                    if summary['total_alertas'] > 0:
-                        alertas_json = df_raw[df_raw['tem_alerta_dependencia']]['alerta_detalhes'].tolist()
-                        json_str = json.dumps(alertas_json, ensure_ascii=False, indent=2)
-                        st.download_button(
-                            label="Baixar Alertas (JSON)",
-                            data=json_str,
-                            file_name=f"alertas_dependencia_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                            mime="application/json"
-                        )
-            
-            else:
-                st.error(f"Erro ao executar análise: {summary.get('error', 'Erro desconhecido')}")
-                st.info("""
-                ### Como usar:
-                
-                1. Certifique-se de que o arquivo `data/initialization.json` está presente
-                2. Verifique se a matriz de impedância está disponível em `data/01_raw/impedance/impedancias_filtradas_2h.csv`
-                3. Recarregue o dashboard (F5)
-                """)
-        
-        except Exception as e:
-            st.error(f"Erro ao carregar análise de sedes: {e}")
-            import traceback
-            with st.expander("Ver detalhes do erro"):
-                st.code(traceback.format_exc())
-    
-    # === FOOTER ===
-    st.markdown("---")
-    st.markdown("""
-    <div style='text-align: center; color: #666; font-size: 0.9rem; margin-top: 2rem;'>
-        <p><strong>GeoValida</strong> • Consolidação Territorial de UTPs</p>
-        <p>Laboratório de Transportes • UFSC</p>
-        <p style='font-size: 0.8rem; color: #999;'>Cache de consolidação em: <code>data/consolidation_result.json</code></p>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-    # ==== TAB 4: ANÁLISE INTERESTADUAL ====
-    with tab4:
-        st.markdown("### <span class='step-badge step-final'>ANÁLISE</span> UTPs Interestaduais", unsafe_allow_html=True)
-        st.markdown("Identificação de UTPs que abrangem municípios de múltiplos estados.")
-        st.markdown("---")
-        
-        # 1. Identificar UTPs interestaduais
-        # Agrupar por UTP e contar UFs únicos
-        stats_interestadual = df_municipios.groupby('utp_id')['uf'].nunique().reset_index()
-        utps_interestaduais_ids = stats_interestadual[stats_interestadual['uf'] > 1]['utp_id'].tolist()
-        
-        if not utps_interestaduais_ids:
-            st.info("Nenhuma UTP interestadual encontrada.")
-        else:
-            # Filtrar dados para essas UTPs
-            df_interestadual = df_municipios[df_municipios['utp_id'].isin(utps_interestaduais_ids)].copy()
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Total de UTPs Interestaduais", len(utps_interestaduais_ids))
-            with col2:
-                st.metric("Municípios Envolvidos", len(df_interestadual))
-            
-            # --- MAPA COM COLORAÇÃO ESPECÍFICA ---
-            st.markdown("#### Mapa de Discrepância de Estado")
-            st.caption("🔴 Tons de Vermelho: Município em estado diferente da Sede | ⚪ Tons de Cinza: Município no mesmo estado da Sede")
-            st.caption("*(Cores variam para distinguir UTPs vizinhas)*")
-            
-            # Criar mapa de cores customizado
-            custom_colors = {} # cd_mun -> hex color
-            
-            # Paletas topológicas (5 cores cada) para garantir contraste entre vizinhos
-            # Reds para "Fora do Estado"
-            REDS = ['#FF0000', '#B22222', '#CD5C5C', '#8B0000', '#FF4500']
-            # Grays para "Dentro do Estado"
-            GRAYS = ['#D3D3D3', '#A9A9A9', '#808080', '#696969', '#C0C0C0']
-            
-            # Iterar por UTP para determinar cores
-            for utp_id, group in df_interestadual.groupby('utp_id'):
-                # Achar a sede
-                sede_row = group[group['sede_utp'] == True]
-                if sede_row.empty:
-                    # Se não tem sede definida (raro), usa a moda da UF
-                    sede_uf = group['uf'].mode().iloc[0]
-                else:
-                    sede_uf = sede_row.iloc[0]['uf']
-                
-                # Colorir
-                for idx, row in group.iterrows():
-                    cd_mun = int(row['cd_mun'])
-                    
-                    # Obter índice de coloração topológica (0-4)
-                    # Isso garante que UTPs vizinhas tenham índices diferentes
-                    color_idx = global_colors_initial.get(cd_mun, 0)
-                    palette_idx = color_idx % 5
-                    
-                    if row['uf'] != sede_uf:
-                        custom_colors[cd_mun] = REDS[palette_idx] # Variação de vermelho
-                    else:
-                        custom_colors[cd_mun] = GRAYS[palette_idx] # Variação de cinza
-            
-            if gdf is not None:
-                # Filtrar GDF
-                gdf_inter = gdf[gdf['utp_id'].isin(utps_interestaduais_ids)].copy()
-                
-                # Calcular Cores Reais
-                def get_color(row):
-                    cd_mun_int = int(row['CD_MUN'])
-                    # Retorna a cor calculada ou branco se erro
-                    return custom_colors.get(cd_mun_int, '#FFFFFF')
-                
-                gdf_inter['color'] = gdf_inter.apply(get_color, axis=1)
-                
-                # Renderizar Folium
-                m_inter = folium.Map(
-                    location=[-15, -55], zoom_start=4,
-                    tiles="CartoDB positron", prefer_canvas=True
-                )
-                
-                if not gdf_inter.empty:
-                    bounds = gdf_inter.total_bounds
-                    m_inter.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]], padding=(0.05, 0.05))
-                
-                # Estilo
-                folium.GeoJson(
-                    gdf_inter.to_json(),
-                    style_function=lambda x: {
-                        'fillColor': x['properties'].get('color', '#cccccc'),
-                        'color': '#ffffff', # Borda branca para destacar municípios
-                        'weight': 0.5,
-                        'fillOpacity': 0.8
-                    },
-                    tooltip=folium.GeoJsonTooltip(
-                        fields=['NM_MUN', 'utp_id', 'uf', 'nm_sede'],
-                        aliases=['Município:', 'UTP:', 'UF:', 'Sede:'],
-                        localize=True
-                    )
-                ).add_to(m_inter)
-                
-                # Adicionar Contorno das UTPs (Preto)
-                try:
-                    # Preparar geometria para dissolver
-                    # Usar projeção métrica para buffer mais preciso (3857 ou 5880) e evitar warning
-                    # 100 metros de tolerância para fechar buracos
-                    
-                    # 1. Projetar para CRS métrico (EPSG:3857 - Pseudo-Mercator é rápido e suficiente aqui)
-                    gdf_metric = gdf_inter.to_crs(epsg=3857)
-                    
-                    # 2. Buffer positivo (expandir) em metros
-                    gdf_metric['geometry'] = gdf_metric.geometry.buffer(200)
-                    
-                    # 3. Dissolver por UTP
-                    gdf_dissolved_metric = gdf_metric.dissolve(by='utp_id')
-                    
-                    # 4. Buffer negativo (contrair) em metros para restaurar forma
-                    gdf_dissolved_metric['geometry'] = gdf_dissolved_metric.geometry.buffer(-200)
-                    
-                    # 5. Projetar de volta para WGS84 (Folium)
-                    gdf_utp_outlines = gdf_dissolved_metric.to_crs(epsg=4326).reset_index()
-                    gdf_utp_outlines = gdf_utp_outlines.reset_index()
-                    
-                    folium.GeoJson(
-                        gdf_utp_outlines,
-                        style_function=lambda x: {
-                            'fillColor': 'none',
-                            'color': '#000000', # Preto
-                            'weight': 2.0,      # Mais espesso que os municípios
-                            'fillOpacity': 0
-                        },
-                        interactive=False, # Não atrapalhar tooltip dos municípios
-                        name="Contornos de UTP"
-                    ).add_to(m_inter)
-                except Exception as e:
-                    logging.warning(f"Erro ao gerar contornos de UTP: {e}")
-                
-                map_html_inter = m_inter._repr_html_()
-                st.components.v1.html(map_html_inter, height=600, scrolling=False)
-            
-            st.markdown("---")
-            st.markdown("#### Detalhamento")
-            
-            # Tabela detalhada
-            table_data = []
-            for utp_id, group in df_interestadual.groupby('utp_id'):
-                # Identificar UFs presentes
-                ufs_presentes = sorted(group['uf'].unique().tolist())
-                sede_row = group[group['sede_utp'] == True]
-                sede_nm = sede_row.iloc[0]['nm_mun'] if not sede_row.empty else "N/A"
-                sede_uf = sede_row.iloc[0]['uf'] if not sede_row.empty else "N/A"
-                
-                # Contar municípios fora do estado da sede
-                muns_fora = group[group['uf'] != sede_uf]
-                qtd_fora = len(muns_fora)
-                
-                table_data.append({
-                    "UTP": utp_id,
-                    "Sede": f"{sede_nm} ({sede_uf})",
-                    "UFs Envolvidas": ", ".join(ufs_presentes),
-                    "Qtd. Municípios Fora do Estado da Sede": qtd_fora,
-                    "Total Municípios": len(group)
-                })
-            
-            df_table_inter = pd.DataFrame(table_data).sort_values("Qtd. Municípios Fora do Estado da Sede", ascending=False)
-            st.dataframe(df_table_inter, hide_index=True, width='stretch')
-
-
-    # ==== TAB CONSOLIDAÇÃO SEDES (NOVA) ====
-    with tab_sedes:
-        st.markdown("### <span class='step-badge step-final'>NOVO</span> Consolidação de Sedes", unsafe_allow_html=True)
-        st.markdown("Comparativo entre o cenário Pós-Limpeza (Base) e Pós-Consolidação de Sedes (Final).")
-        st.markdown("Nesta etapa, sedes dependentes (fluxo principal + 2h distância) são anexadas a sedes mais fortes.")
+        1.  **Dependência de fluxo e tempo:** a sede da UTP “A” deve ter seu fluxo principal de viagens voltado para a sede da UTP “B”, com um tempo de deslocamento de <= 2h.
+        2.  **Compatibilidade de RM:** ambas as sedes pertencem à mesma Região Metropolitana ou ambas não pertencem a nenhuma.
+        3.  **Adjacência Geográfica:** As UTPs devem compartilhar uma fronteira física com a UTP de destino.
+        4.  **Pontuação de Infraestrutura:** A UTP de destino deve possuir um nível de infraestrutura (Aeroportos, Turismo e REGIC) superior a UTP de origem.
+        """)
         st.markdown("---")
 
         # Verificar se existe resultado dedicado de Sedes
@@ -1566,6 +1046,21 @@ def render_dashboard(manager):
                  
                  st.markdown("---")
 
+                 # Controle de visualização de contornos
+                 col_ctrl1, col_ctrl2 = st.columns(2)
+                 with col_ctrl1:
+                     show_rm_borders_tab3 = st.checkbox(
+                         "Mostrar contornos de Regiões Metropolitanas",
+                         value=False,
+                         key='show_rm_tab3'
+                     )
+                 with col_ctrl2:
+                     show_state_borders_tab3 = st.checkbox(
+                         "Mostrar limites Estaduais",
+                         value=False,
+                         key='show_state_tab3'
+                     )
+
                  # Renderizar
                  # Tentar carregar coloração final específica se existir, senão usa a consolidada padrão
                  colors_final = {}
@@ -1576,9 +1071,30 @@ def render_dashboard(manager):
                  else:
                      colors_final = load_or_compute_coloring(gdf_final, "post_sede_coloring.json")
 
-                 render_map(gdf_final, title="Final (Snapshot)", 
-                           global_colors=colors_final, 
-                           gdf_rm=gdf_rm, show_rm_borders=True)
+                 # Preparar contornos de estado
+                 gdf_states_filtered = None
+                 if show_state_borders_tab3 and gdf is not None:
+                    gdf_all_states = get_state_boundaries(gdf)
+                    if gdf_all_states is not None and selected_ufs:
+                        gdf_states_filtered = gdf_all_states[gdf_all_states['uf'].isin(selected_ufs)]
+                    else:
+                        gdf_states_filtered = gdf_all_states
+
+                 # Renderizar mapa usando render_map_with_flow_popups
+                 m = render_map_with_flow_popups(
+                     gdf_final, 
+                     df_municipios,
+                     title="Final (Snapshot)", 
+                     global_colors=colors_final, 
+                     gdf_rm=gdf_rm, 
+                     show_rm_borders=show_rm_borders_tab3,
+                     show_state_borders=show_state_borders_tab3,
+                     gdf_states=gdf_states_filtered,
+                     PASTEL_PALETTE=PASTEL_PALETTE
+                 )
+                 if m:
+                      map_html = m._repr_html_()
+                      st.components.v1.html(map_html, height=600, scrolling=False)
              else:
                  st.warning("Mapa indisponível")
              
@@ -1608,10 +1124,77 @@ def render_dashboard(manager):
              st.info("Nenhuma consolidação de sedes encontrada.")
              st.caption("Execute a Etapa 6 do pipeline e certifique-se que houve consolidações.")
     
-    # ==== TAB BORDERS: VALIDAÇÃO DE FRONTEIRAS ====
-    with tab_borders:
-        st.markdown("### <span class='step-badge step-final'>STEP 8</span> Validação de Fronteiras", unsafe_allow_html=True)
-        st.markdown("Análise e refinamento iterativo de fronteiras entre UTPs baseado em fluxos principais.")
+    # ==== TAB 4: DUPLA ADERÊNCIA / CENTRALIZAÇÃO ====
+    with tab4:
+        st.markdown("### <span class='step-badge step-final'>Versão 8.3</span> Centralização das Sedes", unsafe_allow_html=True)
+        st.markdown("""
+        **Última etapa que garante que todos os municípios de uma mesma UTP tenham a sua própria sede como referencial. Desta forma, o algoritmo pretende:**
+        
+        1.  **Buscar Municípios limítrofes:** listar dentro de uma UTP todos os munícipios de fronteira que não possuam outra sede como principal, dentro do fluxo de 2h.
+        2.  **Validar e registrar o movimento:** garantir que as mudanças respeitem as regras invioláveis e persistir a mudança, para a atualização do estado do grafo.
+        3.  **Iterar até a inexistência de movimentos:** permitir que o algoritmo execute novamente até que todos os munícipios limítrofes queiram pertencer a sua UTP atual ou que as mudanças estejam bloqueadas pelas regras invioláveis.
+        
+        *Etapa ainda em discussão. Duas versões implementadas, mas com melhorias a serem feitas devido a quebra de descontinuidade.*
+        """)
+        st.markdown("---")
+        
+        # === SEÇÃO DE ANÁLISE DE FLUXO ===
+        st.markdown("### Análise de Fluxos por UTP")
+        st.markdown("Visualize os municípios com maior fluxo dentro de cada UTP.")
+        
+        # Carregar dados com UTP atualizada (step8) + dados de fluxo (initialization)
+        df_step8_with_flows = snapshot_loader.get_complete_dataframe_with_flows('step8')
+        
+        # Painel de análise de fluxo por UTP
+        with st.expander("Municípios com Maior Fluxo por UTP", expanded=False):
+            st.caption("Selecione uma UTP para visualizar os municípios ordenados por volume total de fluxo")
+            st.caption("ℹ️ Dados baseados no estado final após validação de fronteiras (Step 8)")
+            
+            # Determinar UTPs disponíveis para seleção
+            # Use df_step8_with_flows for available UTPs (not df_filtered) to ensure
+            # flow data is available even when UI filters are applied
+            available_utps = sorted(df_step8_with_flows['utp_id'].unique().tolist()) if not df_step8_with_flows.empty else []
+            
+            if available_utps:
+                # Seletor de UTP
+                selected_utp_for_flow = st.selectbox(
+                    "Selecione a UTP:",
+                    options=available_utps,
+                    key="utp_flow_selector"
+                )
+                
+                if selected_utp_for_flow:
+                    # Obter dados de fluxo para a UTP selecionada (usando dados do step8)
+                    df_utp_flows = get_top_municipalities_in_utp(df_step8_with_flows, selected_utp_for_flow, top_n=10)
+                    
+                    if not df_utp_flows.empty:
+                        st.markdown(f"#### Top 10 Municípios por Fluxo - UTP {selected_utp_for_flow}")
+                        
+                        # Exibir tabela formatada
+                        df_display = df_utp_flows.copy()
+                        df_display['total_flow'] = df_display['total_flow'].apply(lambda x: f"{x:,}")
+                        df_display['rodoviaria_coletiva'] = df_display['rodoviaria_coletiva'].apply(lambda x: f"{x:,}")
+                        df_display['rodoviaria_particular'] = df_display['rodoviaria_particular'].apply(lambda x: f"{x:,}")
+                        df_display['aeroviaria'] = df_display['aeroviaria'].apply(lambda x: f"{x:,}")
+                        
+                        df_display = df_display.rename(columns={
+                            'nm_mun': 'Município',
+                            'total_flow': 'Fluxo Total',
+                            'rodoviaria_coletiva': 'Rod. Coletiva',
+                            'rodoviaria_particular': 'Rod. Particular',
+                            'aeroviaria': 'Aérea'
+                        })
+                        
+                        st.dataframe(
+                            df_display[['Município', 'Fluxo Total', 'Rod. Coletiva', 'Rod. Particular', 'Aérea']],
+                            hide_index=True,
+                            width='stretch'
+                        )
+                    else:
+                        st.info("Nenhum dado de fluxo disponível para esta UTP.")
+            else:
+                st.warning("Nenhuma UTP disponível nos filtros selecionados.")
+        
         st.markdown("---")
         
         # Visualizar Mapa Snapshot Step 8
@@ -1623,6 +1206,7 @@ def render_dashboard(manager):
                      gdf_borders = gdf_borders[gdf_borders['utp_id'].isin(selected_utps)]
                      
                  st.subheader("Estado Final Pós-Validação (Snapshot)")
+                 st.caption("Clique em um município no mapa para ver os 5 principais destinos de fluxo")
                  
                  # === MÉTRICAS PADRONIZADAS (MOVIDO PARA CIMA DO MAPA) ===
                  if not gdf_borders.empty:
@@ -1647,9 +1231,54 @@ def render_dashboard(manager):
                          col_name = 'CD_MUN' if 'CD_MUN' in row else 'cd_mun'
                          colors_borders[int(row[col_name])] = int(row['color_id'])
                  
-                 render_map(gdf_borders, title="Validação Fronteiras (Snapshot)", 
-                           global_colors=colors_borders,
-                           gdf_rm=gdf_rm, show_rm_borders=True)
+                 # Controle de visualização de contornos
+                 col_ctrl1, col_ctrl2 = st.columns(2)
+                 with col_ctrl1:
+                     show_rm_borders_tab4 = st.checkbox(
+                         "Mostrar contornos de Regiões Metropolitanas",
+                         value=False,
+                         key='show_rm_tab4'
+                     )
+                 with col_ctrl2:
+                     show_state_borders_tab4 = st.checkbox(
+                         "Mostrar limites Estaduais",
+                         value=False,
+                         key='show_state_tab4'
+                     )
+
+                 # Preparar contornos de estado
+                 gdf_states_filtered = None
+                 if show_state_borders_tab4 and gdf is not None:
+                    gdf_all_states = get_state_boundaries(gdf)
+                    if gdf_all_states is not None and selected_ufs:
+                        gdf_states_filtered = gdf_all_states[gdf_all_states['uf'].isin(selected_ufs)]
+                    else:
+                        gdf_states_filtered = gdf_all_states
+
+                 # Usar a nova função de renderização com popups de fluxo
+                 # IMPORTANTE: Usar df_step8_with_flows para que os popups mostrem
+                 # os fluxos baseados nas UTPs atualizadas do Step 8
+                 try:
+                     map_with_flows = render_map_with_flow_popups(
+                         gdf_borders,
+                         df_step8_with_flows,  # Dados com UTP atualizada + fluxos
+                         title="Validação Fronteiras (Snapshot)",
+                         global_colors=colors_borders,
+                         gdf_rm=gdf_rm, 
+                         show_rm_borders=show_rm_borders_tab4,
+                         show_state_borders=show_state_borders_tab4,
+                         gdf_states=gdf_states_filtered,
+                         PASTEL_PALETTE=PASTEL_PALETTE
+                     )
+                     
+                     if map_with_flows:
+                         map_html = map_with_flows._repr_html_()
+                         st.components.v1.html(map_html, height=600, scrolling=False)
+                 except Exception as e:
+                     logging.error(f"Erro ao renderizar mapa com fluxos: {e}")
+                     st.error(f"Erro ao renderizar mapa: {e}")
+                     st.error(f"Erro ao renderizar mapa: {e}")
+                 
                  st.markdown("---")
         
         # Carregar dados de validação de fronteiras

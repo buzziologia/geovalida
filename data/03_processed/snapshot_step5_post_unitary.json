@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-02-02T14:05:14.609946",
+    "timestamp": "2026-02-09T09:37:14.390333",
     "step": "Post-Unitary Consolidation",
     "version": "1.0"
   },
@@ -215,10 +215,6 @@
       "name": "Ribeira",
       "utp_id": "4",
       "sede_utp": false
-    },
-    "UTP_484": {
-      "type": "utp",
-      "utp_id": "484"
     },
     "1100080": {
       "type": "municipality",
@@ -811,10 +807,6 @@
       "utp_id": "15",
       "sede_utp": false
     },
-    "UTP_132": {
-      "type": "utp",
-      "utp_id": "132"
-    },
     "1200054": {
       "type": "municipality",
       "name": "Assis Brasil",
@@ -921,10 +913,6 @@
       "utp_id": "19",
       "sede_utp": false
     },
-    "UTP_507": {
-      "type": "utp",
-      "utp_id": "507"
-    },
     "1200302": {
       "type": "municipality",
       "name": "Feijó",
@@ -983,10 +971,6 @@
       "utp_id": "20",
       "sede_utp": false
     },
-    "UTP_583": {
-      "type": "utp",
-      "utp_id": "583"
-    },
     "1200351": {
       "type": "municipality",
       "name": "Marechal Thaumaturgo",
@@ -1038,10 +1022,6 @@
       "name": "Romaria",
       "utp_id": "21",
       "sede_utp": false
-    },
-    "UTP_653": {
-      "type": "utp",
-      "utp_id": "653"
     },
     "1200393": {
       "type": "municipality",
@@ -1240,10 +1220,6 @@
       "utp_id": "24",
       "sede_utp": false
     },
-    "UTP_382": {
-      "type": "utp",
-      "utp_id": "382"
-    },
     "1300060": {
       "type": "municipality",
       "name": "Amaturá",
@@ -1338,10 +1314,6 @@
       "utp_id": "25",
       "sede_utp": false
     },
-    "UTP_387": {
-      "type": "utp",
-      "utp_id": "387"
-    },
     "1300144": {
       "type": "municipality",
       "name": "Apuí",
@@ -1373,10 +1345,6 @@
     "RM_Recorte Metropolitano de Manaus": {
       "type": "rm",
       "name": "Recorte Metropolitano de Manaus"
-    },
-    "UTP_399": {
-      "type": "utp",
-      "utp_id": "399"
     },
     "1300300": {
       "type": "municipality",
@@ -1466,10 +1434,6 @@
       "name": "Trindade",
       "utp_id": "27",
       "sede_utp": false
-    },
-    "UTP_403": {
-      "type": "utp",
-      "utp_id": "403"
     },
     "1300409": {
       "type": "municipality",
@@ -1599,10 +1563,6 @@
       "utp_id": "30",
       "sede_utp": false
     },
-    "UTP_411": {
-      "type": "utp",
-      "utp_id": "411"
-    },
     "1300706": {
       "type": "municipality",
       "name": "Boca do Acre",
@@ -1626,10 +1586,6 @@
       "regiao_metropolitana": "Recorte Metropolitano de Campinas",
       "utp_id": "31",
       "sede_utp": false
-    },
-    "UTP_416": {
-      "type": "utp",
-      "utp_id": "416"
     },
     "1300805": {
       "type": "municipality",
@@ -1755,10 +1711,6 @@
       "utp_id": "32",
       "sede_utp": false
     },
-    "UTP_452": {
-      "type": "utp",
-      "utp_id": "452"
-    },
     "1301001": {
       "type": "municipality",
       "name": "Carauari",
@@ -1792,10 +1744,6 @@
       "name": "Hulha Negra",
       "utp_id": "33",
       "sede_utp": false
-    },
-    "UTP_470": {
-      "type": "utp",
-      "utp_id": "470"
     },
     "1301209": {
       "type": "municipality",
@@ -2027,10 +1975,6 @@
       "utp_id": "36",
       "sede_utp": false
     },
-    "UTP_509": {
-      "type": "utp",
-      "utp_id": "509"
-    },
     "1301605": {
       "type": "municipality",
       "name": "Fonte Boa",
@@ -2070,10 +2014,6 @@
       "name": "Bom Jardim de Goiás",
       "utp_id": "37",
       "sede_utp": false
-    },
-    "UTP_528": {
-      "type": "utp",
-      "utp_id": "528"
     },
     "1301704": {
       "type": "municipality",
@@ -2201,10 +2141,6 @@
       "name": "Viradouro",
       "utp_id": "39",
       "sede_utp": false
-    },
-    "UTP_553": {
-      "type": "utp",
-      "utp_id": "553"
     },
     "1302108": {
       "type": "municipality",
@@ -2348,10 +2284,6 @@
       "utp_id": "40",
       "sede_utp": false
     },
-    "UTP_563": {
-      "type": "utp",
-      "utp_id": "563"
-    },
     "1302207": {
       "type": "municipality",
       "name": "Juruá",
@@ -2414,10 +2346,6 @@
       "regiao_metropolitana": "Recorte Metropolitano de Belém",
       "utp_id": "41",
       "sede_utp": false
-    },
-    "UTP_566": {
-      "type": "utp",
-      "utp_id": "566"
     },
     "1302306": {
       "type": "municipality",
@@ -2793,10 +2721,6 @@
       "utp_id": "44",
       "sede_utp": false
     },
-    "UTP_577": {
-      "type": "utp",
-      "utp_id": "577"
-    },
     "1302702": {
       "type": "municipality",
       "name": "Manicoré",
@@ -2854,10 +2778,6 @@
       "name": "Penápolis",
       "utp_id": "45",
       "sede_utp": false
-    },
-    "UTP_579": {
-      "type": "utp",
-      "utp_id": "579"
     },
     "1302801": {
       "type": "municipality",
@@ -2956,10 +2876,6 @@
       "regiao_metropolitana": "Recorte Metropolitano do Vale Europeu",
       "utp_id": "46",
       "sede_utp": false
-    },
-    "UTP_586": {
-      "type": "utp",
-      "utp_id": "586"
     },
     "1302900": {
       "type": "municipality",
@@ -3095,10 +3011,6 @@
       "utp_id": "49",
       "sede_utp": false
     },
-    "UTP_613": {
-      "type": "utp",
-      "utp_id": "613"
-    },
     "1303304": {
       "type": "municipality",
       "name": "Novo Aripuanã",
@@ -3211,10 +3123,6 @@
       "utp_id": "50",
       "sede_utp": false
     },
-    "UTP_238": {
-      "type": "utp",
-      "utp_id": "238"
-    },
     "1303403": {
       "type": "municipality",
       "name": "Parintins",
@@ -3285,10 +3193,6 @@
       "utp_id": "51",
       "sede_utp": false
     },
-    "UTP_632": {
-      "type": "utp",
-      "utp_id": "632"
-    },
     "1303502": {
       "type": "municipality",
       "name": "Pauini",
@@ -3358,10 +3262,6 @@
       "name": "Tracuateua",
       "utp_id": "52",
       "sede_utp": false
-    },
-    "UTP_659": {
-      "type": "utp",
-      "utp_id": "659"
     },
     "1303536": {
       "type": "municipality",
@@ -3457,10 +3357,6 @@
       "regiao_metropolitana": "Recorte Metropolitano do Entorno do Distrito Federal",
       "utp_id": "53",
       "sede_utp": false
-    },
-    "UTP_682": {
-      "type": "utp",
-      "utp_id": "682"
     },
     "1303601": {
       "type": "municipality",
@@ -3603,10 +3499,6 @@
       "name": "São Pedro da Aldeia",
       "utp_id": "56",
       "sede_utp": false
-    },
-    "UTP_715": {
-      "type": "utp",
-      "utp_id": "715"
     },
     "1303908": {
       "type": "municipality",
@@ -3868,10 +3760,6 @@
       "utp_id": "59",
       "sede_utp": false
     },
-    "UTP_742": {
-      "type": "utp",
-      "utp_id": "742"
-    },
     "1304260": {
       "type": "municipality",
       "name": "Uarini",
@@ -3992,10 +3880,6 @@
       "utp_id": "61",
       "sede_utp": false
     },
-    "UTP_376": {
-      "type": "utp",
-      "utp_id": "376"
-    },
     "1400050": {
       "type": "municipality",
       "name": "Alto Alegre",
@@ -4099,10 +3983,6 @@
       "name": "Campina do Monte Alegre",
       "utp_id": "71",
       "sede_utp": false
-    },
-    "UTP_135": {
-      "type": "utp",
-      "utp_id": "135"
     },
     "1400159": {
       "type": "municipality",
@@ -4287,10 +4167,6 @@
       "regiao_metropolitana": "Recorte Metropolitano de Campina Grande",
       "utp_id": "65",
       "sede_utp": false
-    },
-    "UTP_608": {
-      "type": "utp",
-      "utp_id": "608"
     },
     "1400407": {
       "type": "municipality",
@@ -4531,10 +4407,6 @@
       "utp_id": "71",
       "sede_utp": false
     },
-    "UTP_383": {
-      "type": "utp",
-      "utp_id": "383"
-    },
     "1500701": {
       "type": "municipality",
       "name": "Anajás",
@@ -4733,10 +4605,6 @@
       "name": "Feira Nova do Maranhão",
       "utp_id": "77",
       "sede_utp": false
-    },
-    "UTP_445": {
-      "type": "utp",
-      "utp_id": "445"
     },
     "1502152": {
       "type": "municipality",
@@ -5297,10 +5165,6 @@
       "utp_id": "80",
       "sede_utp": false
     },
-    "UTP_493": {
-      "type": "utp",
-      "utp_id": "493"
-    },
     "1502764": {
       "type": "municipality",
       "name": "Cumaru do Norte",
@@ -5596,10 +5460,6 @@
       "utp_id": "84",
       "sede_utp": false
     },
-    "UTP_547": {
-      "type": "utp",
-      "utp_id": "547"
-    },
     "1503754": {
       "type": "municipality",
       "name": "Jacareacanga",
@@ -5647,10 +5507,6 @@
       "regiao_metropolitana": "Recorte Metropolitano da Serra Gaúcha",
       "utp_id": "84",
       "sede_utp": false
-    },
-    "UTP_565": {
-      "type": "utp",
-      "utp_id": "565"
     },
     "1503903": {
       "type": "municipality",
@@ -5820,10 +5676,6 @@
       "regiao_metropolitana": "Recorte Metropolitano de Sorocaba",
       "utp_id": "87",
       "sede_utp": false
-    },
-    "UTP_615": {
-      "type": "utp",
-      "utp_id": "615"
     },
     "1505031": {
       "type": "municipality",
@@ -6366,10 +6218,6 @@
       "utp_id": "93",
       "sede_utp": false
     },
-    "UTP_650": {
-      "type": "utp",
-      "utp_id": "650"
-    },
     "1505908": {
       "type": "municipality",
       "name": "Porto de Moz",
@@ -6511,10 +6359,6 @@
       "name": "Senhora de Oliveira",
       "utp_id": "94",
       "sede_utp": false
-    },
-    "UTP_655": {
-      "type": "utp",
-      "utp_id": "655"
     },
     "1506005": {
       "type": "municipality",
@@ -6707,10 +6551,6 @@
       "utp_id": "319",
       "sede_utp": false
     },
-    "UTP_673": {
-      "type": "utp",
-      "utp_id": "673"
-    },
     "1506195": {
       "type": "municipality",
       "name": "Rurópolis",
@@ -6884,10 +6724,6 @@
       "name": "Tenente Laurentino Cruz",
       "utp_id": "99",
       "sede_utp": false
-    },
-    "UTP_679": {
-      "type": "utp",
-      "utp_id": "679"
     },
     "1506401": {
       "type": "municipality",
@@ -7099,10 +6935,6 @@
       "utp_id": "100",
       "sede_utp": false
     },
-    "UTP_689": {
-      "type": "utp",
-      "utp_id": "689"
-    },
     "1506708": {
       "type": "municipality",
       "name": "Santana do Araguaia",
@@ -7311,10 +7143,6 @@
       "name": "São Sebastião do Oeste",
       "utp_id": "102",
       "sede_utp": false
-    },
-    "UTP_696": {
-      "type": "utp",
-      "utp_id": "696"
     },
     "1507300": {
       "type": "municipality",
@@ -8042,10 +7870,6 @@
       "utp_id": "111",
       "sede_utp": false
     },
-    "UTP_381": {
-      "type": "utp",
-      "utp_id": "381"
-    },
     "1600105": {
       "type": "municipality",
       "name": "Amapá",
@@ -8348,10 +8172,6 @@
       "name": "Sertão",
       "utp_id": "115",
       "sede_utp": false
-    },
-    "UTP_146": {
-      "type": "utp",
-      "utp_id": "146"
     },
     "1600501": {
       "type": "municipality",
@@ -9336,10 +9156,6 @@
       "name": "Uruçuca",
       "utp_id": "126",
       "sede_utp": false
-    },
-    "UTP_568": {
-      "type": "utp",
-      "utp_id": "568"
     },
     "1711902": {
       "type": "municipality",
@@ -10525,10 +10341,6 @@
       "name": "Cambuci",
       "utp_id": "163",
       "sede_utp": false
-    },
-    "UTP_740": {
-      "type": "utp",
-      "utp_id": "740"
     },
     "2112407": {
       "type": "municipality",
@@ -17931,10 +17743,6 @@
       "utp_id": "282",
       "sede_utp": false
     },
-    "UTP_404": {
-      "type": "utp",
-      "utp_id": "404"
-    },
     "2902708": {
       "type": "municipality",
       "name": "Barra",
@@ -18600,10 +18408,6 @@
       "utp_id": "292",
       "sede_utp": false
     },
-    "UTP_447": {
-      "type": "utp",
-      "utp_id": "447"
-    },
     "2906303": {
       "type": "municipality",
       "name": "Canavieiras",
@@ -18872,10 +18676,6 @@
       "utp_id": "296",
       "sede_utp": false
     },
-    "UTP_457": {
-      "type": "utp",
-      "utp_id": "457"
-    },
     "2907202": {
       "type": "municipality",
       "name": "Casa Nova",
@@ -18973,10 +18773,6 @@
       "utp_id": "197",
       "sede_utp": false
     },
-    "UTP_494": {
-      "type": "utp",
-      "utp_id": "494"
-    },
     "2909901": {
       "type": "municipality",
       "name": "Curaçá",
@@ -19068,10 +18864,6 @@
       "name": "Miracema",
       "utp_id": "300",
       "sede_utp": false
-    },
-    "UTP_510": {
-      "type": "utp",
-      "utp_id": "510"
     },
     "2911105": {
       "type": "municipality",
@@ -19914,10 +19706,6 @@
       "utp_id": "311",
       "sede_utp": false
     },
-    "UTP_569": {
-      "type": "utp",
-      "utp_id": "569"
-    },
     "2919306": {
       "type": "municipality",
       "name": "Lençóis",
@@ -20061,19 +19849,11 @@
       "utp_id": "314",
       "sede_utp": false
     },
-    "UTP_574": {
-      "type": "utp",
-      "utp_id": "574"
-    },
     "2919553": {
       "type": "municipality",
       "name": "Luís Eduardo Magalhães",
       "utp_id": "38",
       "sede_utp": false
-    },
-    "UTP_575": {
-      "type": "utp",
-      "utp_id": "575"
     },
     "2919801": {
       "type": "municipality",
@@ -21003,10 +20783,6 @@
       "utp_id": "327",
       "sede_utp": false
     },
-    "UTP_686": {
-      "type": "utp",
-      "utp_id": "686"
-    },
     "2928406": {
       "type": "municipality",
       "name": "Santa Rita de Cássia",
@@ -21423,10 +21199,6 @@
       "regiao_metropolitana": "Recorte Metropolitano da Grande Teresina",
       "utp_id": "336",
       "sede_utp": false
-    },
-    "UTP_720": {
-      "type": "utp",
-      "utp_id": "720"
     },
     "2930204": {
       "type": "municipality",
@@ -22604,10 +22376,6 @@
       "name": "Rio das Flores",
       "utp_id": "356",
       "sede_utp": false
-    },
-    "UTP_207": {
-      "type": "utp",
-      "utp_id": "207"
     },
     "3113404": {
       "type": "municipality",
@@ -24052,10 +23820,6 @@
       "utp_id": "236",
       "sede_utp": true
     },
-    "UTP_297": {
-      "type": "utp",
-      "utp_id": "297"
-    },
     "3147600": {
       "type": "municipality",
       "name": "Passa Quatro",
@@ -24413,10 +24177,6 @@
       "name": "Santa Amélia",
       "utp_id": "402",
       "sede_utp": false
-    },
-    "UTP_656": {
-      "type": "utp",
-      "utp_id": "656"
     },
     "3152808": {
       "type": "municipality",
@@ -25117,10 +24877,6 @@
       "utp_id": "428",
       "sede_utp": false
     },
-    "UTP_120": {
-      "type": "utp",
-      "utp_id": "120"
-    },
     "3202405": {
       "type": "municipality",
       "name": "Guarapari",
@@ -25728,10 +25484,6 @@
       "utp_id": "245",
       "sede_utp": true
     },
-    "UTP_224": {
-      "type": "utp",
-      "utp_id": "224"
-    },
     "3303401": {
       "type": "municipality",
       "name": "Nova Friburgo",
@@ -25791,10 +25543,6 @@
       "name": "Tamboril do Piauí",
       "utp_id": "448",
       "sede_utp": false
-    },
-    "UTP_770": {
-      "type": "utp",
-      "utp_id": "770"
     },
     "3303807": {
       "type": "municipality",
@@ -26984,10 +26732,6 @@
       "utp_id": "487",
       "sede_utp": false
     },
-    "UTP_766": {
-      "type": "utp",
-      "utp_id": "766"
-    },
     "3520400": {
       "type": "municipality",
       "name": "Ilhabela",
@@ -27724,10 +27468,6 @@
       "regiao_metropolitana": "Recorte Metropolitano de Piracicaba",
       "utp_id": "196",
       "sede_utp": true
-    },
-    "UTP_658": {
-      "type": "utp",
-      "utp_id": "658"
     },
     "3541307": {
       "type": "municipality",
@@ -29882,10 +29622,6 @@
       "utp_id": "517",
       "sede_utp": true
     },
-    "UTP_142": {
-      "type": "utp",
-      "utp_id": "142"
-    },
     "4108809": {
       "type": "municipality",
       "name": "Guaíra",
@@ -31607,10 +31343,6 @@
       "utp_id": "33",
       "sede_utp": true
     },
-    "UTP_134": {
-      "type": "utp",
-      "utp_id": "134"
-    },
     "4301875": {
       "type": "municipality",
       "name": "Barra do Quaraí",
@@ -32129,10 +31861,6 @@
       "utp_id": "633",
       "sede_utp": false
     },
-    "UTP_141": {
-      "type": "utp",
-      "utp_id": "141"
-    },
     "4308656": {
       "type": "municipality",
       "name": "Garruchos",
@@ -32304,10 +32032,6 @@
       "name": "Varjão",
       "utp_id": "640",
       "sede_utp": false
-    },
-    "UTP_145": {
-      "type": "utp",
-      "utp_id": "145"
     },
     "4311007": {
       "type": "municipality",
@@ -32814,19 +32538,11 @@
       "utp_id": "657",
       "sede_utp": false
     },
-    "UTP_149": {
-      "type": "utp",
-      "utp_id": "149"
-    },
     "4315057": {
       "type": "municipality",
       "name": "Porto Mauá",
       "utp_id": "687",
       "sede_utp": false
-    },
-    "UTP_150": {
-      "type": "utp",
-      "utp_id": "150"
     },
     "4315073": {
       "type": "municipality",
@@ -32834,19 +32550,11 @@
       "utp_id": "687",
       "sede_utp": false
     },
-    "UTP_151": {
-      "type": "utp",
-      "utp_id": "151"
-    },
     "4315107": {
       "type": "municipality",
       "name": "Porto Xavier",
       "utp_id": "687",
       "sede_utp": false
-    },
-    "UTP_131": {
-      "type": "utp",
-      "utp_id": "131"
     },
     "4315305": {
       "type": "municipality",
@@ -32978,10 +32686,6 @@
       "name": "Ribeiro Gonçalves",
       "utp_id": "665",
       "sede_utp": false
-    },
-    "UTP_152": {
-      "type": "utp",
-      "utp_id": "152"
     },
     "4317103": {
       "type": "municipality",
@@ -33147,10 +32851,6 @@
       "regiao_metropolitana": "Recorte Metropolitano do Sul do Estado",
       "utp_id": "671",
       "sede_utp": false
-    },
-    "UTP_154": {
-      "type": "utp",
-      "utp_id": "154"
     },
     "4318002": {
       "type": "municipality",
@@ -34005,10 +33705,6 @@
       "utp_id": "693",
       "sede_utp": false
     },
-    "UTP_133": {
-      "type": "utp",
-      "utp_id": "133"
-    },
     "5002100": {
       "type": "municipality",
       "name": "Bela Vista",
@@ -34090,10 +33786,6 @@
       "utp_id": "466",
       "sede_utp": true
     },
-    "UTP_136": {
-      "type": "utp",
-      "utp_id": "136"
-    },
     "5003157": {
       "type": "municipality",
       "name": "Coronel Sapucaia",
@@ -34151,10 +33843,6 @@
       "name": "Tiros",
       "utp_id": "702",
       "sede_utp": false
-    },
-    "UTP_485": {
-      "type": "utp",
-      "utp_id": "485"
     },
     "5003256": {
       "type": "municipality",
@@ -34862,10 +34550,6 @@
       "name": "Vitória das Missões",
       "utp_id": "711",
       "sede_utp": false
-    },
-    "UTP_147": {
-      "type": "utp",
-      "utp_id": "147"
     },
     "5006358": {
       "type": "municipality",
@@ -35641,10 +35325,6 @@
       "utp_id": "733",
       "sede_utp": false
     },
-    "UTP_785": {
-      "type": "utp",
-      "utp_id": "785"
-    },
     "5103858": {
       "type": "municipality",
       "name": "Gaúcha do Norte",
@@ -35705,10 +35385,6 @@
       "utp_id": "737",
       "sede_utp": false
     },
-    "UTP_559": {
-      "type": "utp",
-      "utp_id": "559"
-    },
     "5105101": {
       "type": "municipality",
       "name": "Juara",
@@ -35763,10 +35439,6 @@
       "utp_id": "572",
       "sede_utp": true
     },
-    "UTP_573": {
-      "type": "utp",
-      "utp_id": "573"
-    },
     "5105309": {
       "type": "municipality",
       "name": "Luciara",
@@ -35779,10 +35451,6 @@
       "regiao_metropolitana": "Recorte Metropolitano do Distrito Federal e Entorno",
       "utp_id": "744",
       "sede_utp": false
-    },
-    "UTP_757": {
-      "type": "utp",
-      "utp_id": "757"
     },
     "5105507": {
       "type": "municipality",
@@ -35843,10 +35511,6 @@
       "name": "Paranatinga",
       "utp_id": "630",
       "sede_utp": true
-    },
-    "UTP_646": {
-      "type": "utp",
-      "utp_id": "646"
     },
     "5106505": {
       "type": "municipality",
@@ -36078,10 +35742,6 @@
       "name": "São Miguel da Baixa Grande",
       "utp_id": "751",
       "sede_utp": false
-    },
-    "UTP_786": {
-      "type": "utp",
-      "utp_id": "786"
     },
     "5107776": {
       "type": "municipality",
@@ -36411,10 +36071,6 @@
       "utp_id": "729",
       "sede_utp": true
     },
-    "UTP_758": {
-      "type": "utp",
-      "utp_id": "758"
-    },
     "5108600": {
       "type": "municipality",
       "name": "Vila Rica",
@@ -36671,10 +36327,6 @@
       "utp_id": "767",
       "sede_utp": false
     },
-    "UTP_461": {
-      "type": "utp",
-      "utp_id": "461"
-    },
     "5205307": {
       "type": "municipality",
       "name": "Cavalcante",
@@ -36712,10 +36364,6 @@
       "utp_id": "86",
       "sede_utp": true
     },
-    "UTP_465": {
-      "type": "utp",
-      "utp_id": "465"
-    },
     "5205471": {
       "type": "municipality",
       "name": "Chapadão do Céu",
@@ -36751,10 +36399,6 @@
       "name": "Pacajá",
       "utp_id": "781",
       "sede_utp": false
-    },
-    "UTP_488": {
-      "type": "utp",
-      "utp_id": "488"
     },
     "5206206": {
       "type": "municipality",
@@ -37349,10 +36993,6 @@
       "name": "Piranhas",
       "utp_id": "NOVA18",
       "sede_utp": false
-    },
-    "UTP_606": {
-      "type": "utp",
-      "utp_id": "606"
     },
     "5214606": {
       "type": "municipality",

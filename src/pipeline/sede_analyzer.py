@@ -119,14 +119,30 @@ class SedeAnalyzer:
         try:
             self.logger.info(f"Carregando matriz de impedância de {impedance_path}...")
             
+            # Load CSV with correct encoding (latin-1 instead of utf-8)
             self.df_impedance = pd.read_csv(
                 impedance_path, 
                 sep=';',
-                dtype={'COD_IBGE_ORIGEM': str, 'COD_IBGE_DESTINO': str}
+                encoding='latin-1'  # Fix encoding
             )
             
-            # Renomear colunas para consistência
-            self.df_impedance.columns = ['par_ibge', 'origem', 'destino', 'tempo_horas']
+            # Drop empty columns (Unnamed: 6, Unnamed: 7)
+            self.df_impedance = self.df_impedance.dropna(axis=1, how='all')
+            
+            # The CSV already has proper column names:
+            # PAR_IBGE, COD_IBGE_ORIGEM, COD_IBGE_DESTINO, Tempo,
+            # COD_IBGE_ORIGEM_1 (6-digit), COD_IBGE_DESTINO_1 (6-digit)
+            
+            # We'll rename to match what the code expects:
+            # 'origem' (7-digit), 'destino' (7-digit), 'tempo_horas', 'origem_6', 'destino_6'
+            self.df_impedance = self.df_impedance.rename(columns={
+                'PAR_IBGE': 'par_ibge',
+                'COD_IBGE_ORIGEM': 'origem',
+                'COD_IBGE_DESTINO': 'destino',
+                'Tempo': 'tempo_horas',
+                'COD_IBGE_ORIGEM_1': 'origem_6',
+                'COD_IBGE_DESTINO_1': 'destino_6'
+            })
             
             # Converter coluna tempo_horas de formato brasileiro (vírgula) para float
             self.df_impedance['tempo_horas'] = (
@@ -136,12 +152,24 @@ class SedeAnalyzer:
                 .astype(float)
             )
             
+            # CRITICAL: Ensure 6-digit keys are integers
+            # The CSV already provides 6-digit codes, but we need to ensure they're int
+            self.df_impedance['origem'] = pd.to_numeric(self.df_impedance['origem'], errors='coerce').fillna(0).astype(int)
+            self.df_impedance['destino'] = pd.to_numeric(self.df_impedance['destino'], errors='coerce').fillna(0).astype(int)
+            self.df_impedance['origem_6'] = pd.to_numeric(self.df_impedance['origem_6'], errors='coerce').fillna(0).astype(int)
+            self.df_impedance['destino_6'] = pd.to_numeric(self.df_impedance['destino_6'], errors='coerce').fillna(0).astype(int)
+            
             self.logger.info(f"✓ Carregados {len(self.df_impedance)} pares origem-destino (≤2h)")
             return True
             
+            
         except Exception as e:
             self.logger.error(f"Erro ao carregar matriz de impedância: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            self.df_impedance = pd.DataFrame()  # Ensure it's not None
             return False
+
 
     def get_main_flow_destination(self, cd_mun_origem: int) -> Tuple[Optional[int], float, int, int]:
         """
@@ -191,60 +219,18 @@ class SedeAnalyzer:
         Obtém o tempo de viagem entre dois municípios.
         Fallback: Calcula distância geodésica se não houver na matriz.
         """
-        # 1. Tentar matriz de impedância
+        # 1. Tentar matriz de impedância usando 6-digit keys
         if self.df_impedance is not None:
-            origem_str = str(cd_origem)
-            destino_str = str(cd_destino)
+            origem_6 = int(cd_origem) // 10
+            destino_6 = int(cd_destino) // 10
             
             pair = self.df_impedance[
-                (self.df_impedance['origem'] == origem_str) & 
-                (self.df_impedance['destino'] == destino_str)
+                (self.df_impedance['origem_6'] == origem_6) & 
+                (self.df_impedance['destino_6'] == destino_6)
             ]
             
             if not pair.empty:
                 return float(pair.iloc[0]['tempo_horas'])
-        
-        # 2. Fallback: Calcular via distância geodésica
-        if self.map_generator and self.map_generator.gdf_complete is not None:
-            try:
-                gdf = self.map_generator.gdf_complete
-                
-                # Buscar geometrias usando CD_MUN (convertendo para str se necessário)
-                # O shapefile geralmente tem CD_MUN como string ou int, precisamos garantir match
-                
-                # Tentar buscar origem
-                geom_orig = gdf[gdf['CD_MUN'].astype(str) == str(cd_origem)]
-                geom_dest = gdf[gdf['CD_MUN'].astype(str) == str(cd_destino)]
-                
-                if not geom_orig.empty and not geom_dest.empty:
-                    # Usar centroids projetados para cálculo rápido (ou to_crs(4326) para haversine preciso)
-                    # Vamos projetar para UTM (SIRGAS 2000 / Brazil Polyconic ou apenas EPSG:3857 para aproximar)
-                    # EPSG:5880 (SIRGAS 2000 / Brazil Polyconic) é bom para metros
-                    
-                    p1 = geom_orig.iloc[0].geometry.centroid
-                    p2 = geom_dest.iloc[0].geometry.centroid
-                    
-                    # Calcular distância euclidiana se estiver projetado, ou haversine se geográfico
-                    # Vamos garantir projeção métrica para calcular em KM
-                    if gdf.crs.is_geographic:
-                        # Reprojetar pontos apenas
-                        import geopandas as gpd
-                        p1 = gpd.GeoSeries([p1], crs=gdf.crs).to_crs(epsg=5880).iloc[0]
-                        p2 = gpd.GeoSeries([p2], crs=gdf.crs).to_crs(epsg=5880).iloc[0]
-                    
-                    dist_meters = p1.distance(p2)
-                    dist_km = dist_meters / 1000.0
-                    
-                    # Estimar tempo: 60 km/h média
-                    # Adicionar penalidade de 1.2x para tortuosidade da estrada
-                    estimated_time = (dist_km * 1.2) / 60.0
-                    
-                    # Logging discreto para debug
-                    # self.logger.debug(f"Time estimated {cd_origem}->{cd_destino}: {dist_km:.1f}km -> {estimated_time:.2f}h")
-                    
-                    return estimated_time
-            except Exception as e:
-                self.logger.warning(f"Erro ao estimar distância {cd_origem}->{cd_destino}: {e}")
         
         return None
 
@@ -322,6 +308,10 @@ class SedeAnalyzer:
         """
         if self.df_municipios is None:
             return pd.DataFrame()
+        
+        # Ensure impedance data is loaded for travel time calculations
+        if self.df_impedance is None:
+            self.load_impedance_data()
         
         # Filtrar apenas sedes
         df_sedes = self.df_municipios[self.df_municipios['sede_utp'] == True].copy()

@@ -47,6 +47,11 @@ class UTPMapGenerator:
 
         if 'CD_MUN' not in self.gdf_complete.columns:
             raise RuntimeError("GeoDataFrame não contém coluna 'CD_MUN'.")
+        
+        # CRITICAL: Clean empty UTPs before syncing to ensure consistency
+        removed = graph.cleanup_empty_utps()
+        if removed > 0:
+            self.logger.info(f"   Removed {removed} empty UTP nodes before sync")
 
         # Constrói mapeamento do grafo: município -> UTP
         utp_mapping = {}

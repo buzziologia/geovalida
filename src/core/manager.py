@@ -340,6 +340,18 @@ class GeoValidaManager:
         (self.map_generator
             .sync_with_graph(self.graph)
             .save_map(FILES['mapa_05'].parent / "mapa_06_sedes.png", title="Pós-Consolidação de Sedes"))
+        
+        # DEBUG: Log UTP count after Step 6
+        if self.map_generator.gdf_complete is not None:
+            # Check which column name exists
+            utp_col = 'UTP_ID' if 'UTP_ID' in self.map_generator.gdf_complete.columns else 'utp_id'
+            gdf_utps = self.map_generator.gdf_complete[utp_col].nunique() if utp_col in self.map_generator.gdf_complete.columns else 0
+        else:
+            gdf_utps = 0
+        graph_utps = len([n for n, d in self.graph.hierarchy.nodes(data=True) if d.get('type') == 'utp'])
+        self.logger.info(f"   🔍 DEBUG Post-Step6 State:")
+        self.logger.info(f"      GDF has {gdf_utps} unique UTPs")
+        self.logger.info(f"      Graph has {graph_utps} UTP nodes")
             
         return changes
 
@@ -350,13 +362,59 @@ class GeoValidaManager:
         Validates UTP borders by analyzing border municipalities' main flow.
         Reallocates municipalities when flow points to a different UTP
         and RM rules are respected. Runs iteratively until convergence.
+        
+        Then resolves isolated municipalities (Step 8.5) before generating final outputs.
         """
-        self.logger.info("Etapa 8: Validação de Fronteiras...")
+        self.logger.info("Etapa 8: Validação de Fronteiras + Resolução de Isolados...")
         
-        from src.pipeline.border_validator import BorderValidator
+        from src.pipeline.border_validator_v2 import BorderValidatorV2
+        from src.pipeline.isolated_municipality_resolver import IsolatedMunicipalityResolver
         
-        # Create validator instance
-        validator_instance = BorderValidator(
+        # ===== STEP 8.1: Border Validation V2 =====
+        self.logger.info("\n--- Step 8.1: Border Validation V2 (Sede-Centric) ---")
+        
+        # Ensure impedance is loaded (reusing from SedeAnalyzer or loading fresh)
+        if self.sede_analyzer.df_impedance is None:
+            self.sede_analyzer.load_impedance_data()
+            
+        # Create validator V2 instance
+        validator_instance = BorderValidatorV2(
+            graph=self.graph,
+            validator=self.validator,
+            impedance_df=self.sede_analyzer.df_impedance
+        )
+        
+        # Sync map with current graph state BEFORE border validation
+        self.map_generator.sync_with_graph(self.graph)
+        
+        # DEBUG: Log UTP count to verify sync
+        if self.map_generator.gdf_complete is not None:
+            # Check which column name exists
+            utp_col = 'UTP_ID' if 'UTP_ID' in self.map_generator.gdf_complete.columns else 'utp_id'
+            gdf_utps = self.map_generator.gdf_complete[utp_col].nunique() if utp_col in self.map_generator.gdf_complete.columns else 0
+        else:
+            gdf_utps = 0
+        graph_utps = len([n for n, d in self.graph.hierarchy.nodes(data=True) if d.get('type') == 'utp'])
+        self.logger.info(f"   🔍 DEBUG Sync Check:")
+        self.logger.info(f"      GDF has {gdf_utps} unique UTPs")
+        self.logger.info(f"      Graph has {graph_utps} UTP nodes")
+        if gdf_utps != graph_utps:
+            self.logger.warning(f"      ⚠️ MISMATCH: GDF and Graph UTP counts don't match!")
+        
+        # Run border validation
+        changes_border = validator_instance.run_border_validation(
+            flow_df=self.analyzer.full_flow_df,
+            gdf=self.map_generator.gdf_complete,
+            max_iterations=100
+        )
+        
+        self.logger.info(f"✅ Border Validation complete: {changes_border} changes")
+        
+        # ===== STEP 8.5: Isolated Municipality Resolution =====
+        self.logger.info("\n--- Step 8.5: Isolated Municipality Resolution ---")
+        
+        # Create resolver instance
+        resolver = IsolatedMunicipalityResolver(
             graph=self.graph,
             validator=self.validator,
             consolidation_manager=self.consolidator.consolidation_manager if hasattr(self.consolidator, 'consolidation_manager') else None
@@ -365,23 +423,29 @@ class GeoValidaManager:
         # Sync map with current graph state
         self.map_generator.sync_with_graph(self.graph)
         
-        # Run border validation
-        changes = validator_instance.run_border_validation(
+        # Run isolated resolution
+        changes_isolated = resolver.run_isolated_resolution(
             flow_df=self.analyzer.full_flow_df,
             gdf=self.map_generator.gdf_complete,
-            max_iterations=100
+            map_gen=self.map_generator
         )
         
-        # Save map after Step 8
+        self.logger.info(f"✅ Isolated Resolution complete: {changes_isolated} changes")
+        
+        # ===== FINAL OUTPUTS (after both sub-steps) =====
+        total_changes = changes_border + changes_isolated
+        self.logger.info(f"\n✅ Step 8 COMPLETE: {total_changes} total changes ({changes_border} border + {changes_isolated} isolated)")
+        
+        # Save final map after BOTH border validation AND isolated resolution
         (self.map_generator
             .sync_with_graph(self.graph)
-            .save_map(FILES['mapa_05'].parent / "mapa_08_borders.png", title="Pós-Validação de Fronteiras"))
+            .save_map(FILES['mapa_05'].parent / "mapa_08_final.png", title="Pós-Validação de Fronteiras + Resolução de Isolados"))
             
-        # Export Snapshot Step 8 (Final Validated)
-        snapshot_path = Path(__file__).parent.parent.parent / "data" / "03_processed" / "snapshot_step8_border_validation.json"
+        # Export Final Snapshot Step 8 (includes both border validation and isolated resolution)
+        snapshot_path = Path(__file__).parent.parent.parent / "data" / "03_processed" / "snapshot_step8_final.json"
         
         try:
-            # FIX: Compute coloring for snapshot
+            # Compute coloring for snapshot
             gdf = self.map_generator.gdf_complete
             if gdf is not None and not gdf.empty:
                 if 'utp_id' in gdf.columns and 'UTP_ID' not in gdf.columns:
@@ -390,8 +454,9 @@ class GeoValidaManager:
                 coloring = self.graph.compute_graph_coloring(gdf)
                 gdf['COLOR_ID'] = gdf['CD_MUN'].astype(int).map(coloring).fillna(0).astype(int)
             
-            self.graph.export_snapshot(snapshot_path, "Border Validation", self.map_generator.gdf_complete)
+            self.graph.export_snapshot(snapshot_path, "Border Validation + Isolated Resolution", self.map_generator.gdf_complete)
         except Exception as e:
              self.logger.warning(f"⚠️ Failed to export Step 8 snapshot: {e}")
         
-        return changes
+        return total_changes
+

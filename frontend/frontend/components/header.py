@@ -9,7 +9,7 @@ def header() -> rx.Component:
         rx.spacer(),
         
         # Use rx.link para links, não rx.text
-        rx.link("Dashboard", href="/login", color="white", weight="regular", size="3"),
+        rx.link("Dashboard", href="/", color="white", weight="regular", size="3"),
         rx.link("Labtrans", href="https://www.labtrans.ufsc.br/", color="white", weight="regular", size="3"),
         rx.link("Equipe", href="https://www.labtrans.ufsc.br/", color="white", weight="regular", size="3"),
         rx.link("Documentos", href="https://www.labtrans.ufsc.br/", color="white", weight="regular", size="3"),

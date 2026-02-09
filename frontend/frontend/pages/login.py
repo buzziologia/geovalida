@@ -1,29 +1,48 @@
 import reflex as rx
+from ..components.header import header
+from ..components.login_card import login_card
+from ..components.topbar import topbar_logo, topbar
+from ..components.login_background import login_background
+from ..styles import PAGE_COLOR, TEXT_COLOR, TEXT_FONT
 
 def login() -> rx.Component:
-    return rx.center(
-        rx.vstack(
-            rx.heading("Unidade Territorial de Planejamento", size="6", color="white"),
-            rx.text("Bem Vindo", size="8", color="white", weight="bold"),
-            
-            rx.input(placeholder="Usuário", width="100%"),
-            rx.input(placeholder="Senha", type="password", width="100%"),
-            
-            rx.hstack(
-                rx.button("Entrar", width="50%", bg="white", color="black"),
-                rx.button("Acesso Público", width="50%", variant="outline", color="white"),
+    return rx.vstack(
+        # 1. Barra gov.br
+        header(),
+
+        # 2. Barra de Título com Logo (Sub-header)
+        topbar(),
+
+        # 3. Área Principal com Fundo e Card de Login
+        rx.box(
+            # Camada de Fundo (Padrão Geométrico)
+            rx.box(
+                login_background(),
+                position="absolute",
+                top="0",
+                left="0",
                 width="100%",
+                height="100%",
+                z_index="0",
             ),
             
-            spacing="5",
-            bg="#071D41", # Azul escuro do fundo do card
-            padding="4em",
-            border_radius="1em",
-            box_shadow="lg",
-            max_width="500px",
+            # Camada de Conteúdo (Card) - Centralizado
+            rx.center(
+                login_card(),
+                width="100%",
+                height="100%",
+                position="relative",
+                z_index="1",
+                padding="2em",
+            ),
+            
+            width="100%",
+            flex="1",
+            position="relative",
+            overflow="hidden",
         ),
+        
         height="100vh",
         width="100%",
-        # Aqui você pode por uma imagem de fundo depois
-        bg="#0C326F", # Azul Bandeira como fundo da página
+        spacing="0",
     )

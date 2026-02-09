@@ -191,8 +191,8 @@ class SedeConsolidator:
             
             utp_destino = self.graph.get_municipality_utp(sede_destino)
             
-            # Check if same UTP
-            if utp_origem == utp_destino:
+            # Check if same UTP (Ensure strict string comparison)
+            if str(utp_origem) == str(utp_destino):
                 filter_stats['same_utp'] += 1
                 continue
 
@@ -435,58 +435,61 @@ class SedeConsolidator:
             
             self.logger.info(f"\n🔄 Consolidating: {cand['nm_origem']} (UTP {utp_origem}) -> {cand['nm_destino']} (UTP {utp_destino})")
             
-            # Get all municipalities in origin UTP
+            # Get all municipalities in the origin UTP
             muns_to_move = []
             for node, data in self.graph.hierarchy.nodes(data=True):
                 if data.get('type') == 'municipality':
                     if self.graph.get_municipality_utp(node) == utp_origem:
                         muns_to_move.append(node)
             
-            if not muns_to_move:
-                self.logger.warning(f"  ⚠️  No municipalities found in UTP {utp_origem}")
-                continue
-            
-            self.logger.info(f"  Moving {len(muns_to_move)} municipalities from UTP {utp_origem} to {utp_destino}")
+            self.logger.info(f"  Moving entire UTP: {len(muns_to_move)} municipalities from {utp_origem} to {utp_destino}")
             
             # Move all municipalities
             for mun in muns_to_move:
                 self.graph.move_municipality(mun, utp_destino)
                 
-                # Update GDF
+                # Update GDF for this municipality
                 if gdf is not None and 'CD_MUN' in gdf.columns:
                     try:
                         mask = gdf['CD_MUN'].astype(str).str.split('.').str[0] == str(mun)
                         gdf.loc[mask, 'UTP_ID'] = str(utp_destino)
                     except Exception as e:
                         self.logger.error(f"    Failed to update GDF for {mun}: {e}")
-                
-                # Log consolidation
-                cons_entry = self.consolidation_manager.add_consolidation(
-                    source_utp=utp_origem,
-                    target_utp=utp_destino,
-                    reason=f"Sede consolidation: Score {cand['score_origem']}->{cand['score_destino']}, Travel {cand['tempo_viagem_h']:.2f}h",
-                    details={
-                        "mun_id": mun,
-                        "is_sede": (mun == sede_origem),
-                        "score_origem": cand['score_origem'],
-                        "score_destino": cand['score_destino'],
-                        "tempo_viagem_h": cand['tempo_viagem_h'],
-                        "rm_origem": cand.get('rm_origem', ''),
-                        "rm_destino": cand.get('rm_destino', '')
-                    }
-                )
-                self.changes_current_run.append(cons_entry)
+            
+            # Log consolidation
+            cons_entry = self.consolidation_manager.add_consolidation(
+                source_utp=utp_origem,
+                target_utp=utp_destino,
+                reason=f"Sede consolidation (full UTP): Score {cand['score_origem']}->{cand['score_destino']}, Travel {cand['tempo_viagem_h']:.2f}h",
+                details={
+                    "sede_id": sede_origem,
+                    "nm_sede": cand['nm_origem'],
+                    "municipalities_moved": len(muns_to_move),
+                    "score_origem": cand['score_origem'],
+                    "score_destino": cand['score_destino'],
+                    "tempo_viagem_h": cand['tempo_viagem_h'],
+                    "rm_origem": cand.get('rm_origem', ''),
+                    "rm_destino": cand.get('rm_destino', '')
+                }
+            )
+            self.changes_current_run.append(cons_entry)
             
             # Revoke sede status from origin
             if self.graph.hierarchy.has_node(sede_origem):
                 self.graph.hierarchy.nodes[sede_origem]['sede_utp'] = False
             
             # Remove UTP from seeds
-            if utp_origem in self.graph.utp_seeds:
-                del self.graph.utp_seeds[utp_origem]
+            if str(utp_origem) in self.graph.utp_seeds:
+                del self.graph.utp_seeds[str(utp_origem)]
+            
+            # Remove empty UTP node
+            utp_node = f"UTP_{utp_origem}"
+            if self.graph.hierarchy.has_node(utp_node):
+                self.graph.hierarchy.remove_node(utp_node)
             
             total_changes += 1
-            self.logger.info(f"  ✅ Consolidation complete")
+            self.logger.info(f"  ✅ Sede consolidation complete: {len(muns_to_move)} municipalities moved")
+
         
         # Save results
         self._save_results_and_csv()

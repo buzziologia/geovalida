@@ -81,6 +81,61 @@ class TerritorialGraph:
         
         logging.info(f"Município {cd_mun} movido para {target_utp_node}.")
 
+    def remove_empty_utp(self, utp_id: Union[str, int]):
+        """
+        Remove uma UTP vazia (sem municípios) do grafo hierárquico.
+        
+        Esta função é usada para limpar UTPs "fantasmas" que foram esvaziadas
+        após consolidação, evitando inconsistências no grafo.
+        
+        Args:
+            utp_id: ID da UTP a ser removida
+        """
+        utp_node = f"UTP_{utp_id}"
+        
+        if not self.hierarchy.has_node(utp_node):
+            logging.debug(f"UTP {utp_id} não existe no grafo (já removida?).")
+            return
+        
+        # Verificar se a UTP realmente está vazia (sem municípios)
+        successors = list(self.hierarchy.successors(utp_node))
+        if successors:
+            logging.warning(f"UTP {utp_id} ainda tem {len(successors)} municípios. Não pode ser removida.")
+            return
+        
+        # Remove o nó UTP e suas arestas
+        self.hierarchy.remove_node(utp_node)
+        logging.info(f"UTP {utp_id} removida do grafo (nó vazio).")
+    
+    def cleanup_empty_utps(self) -> int:
+        """
+        Remove todas as UTPs vazias (sem municípios) do grafo hierárquico.
+        
+        Este método varre todos os nós UTP no grafo e remove aqueles que
+        não possuem municípios vinculados. Isso é útil após consolidações
+        para manter a consistência do grafo.
+        
+        Returns:
+            Número de UTPs vazias removidas
+        """
+        # Encontra todas as UTPs
+        utp_nodes = [n for n, d in self.hierarchy.nodes(data=True) if d.get('type') == 'utp']
+        
+        removed_count = 0
+        for utp_node in utp_nodes:
+            # Verifica se está vazia (sem municípios)
+            successors = list(self.hierarchy.successors(utp_node))
+            if not successors:
+                # Remove o nó UTP vazio
+                self.hierarchy.remove_node(utp_node)
+                removed_count += 1
+                logging.debug(f"Removed empty UTP: {utp_node}")
+        
+        if removed_count > 0:
+            logging.info(f"🧹 Cleaned up {removed_count} empty UTP nodes from graph")
+        
+        return removed_count
+
     def add_impedance(self, origin: int, destination: int, weight: float):
         """Adiciona peso funcional (impedância) entre dois municípios."""
         if self.functional.has_node(origin) and self.functional.has_node(destination):
@@ -297,3 +352,120 @@ class TerritorialGraph:
             json.dump(snapshot, f, indent=2, ensure_ascii=False)
             
         logging.info(f"📸 Snapshot '{step_name}' salvo em: {path}")
+
+    def load_snapshot(self, path: Path):
+        """
+        Carrega um snapshot JSON e restaura o estado do grafo.
+        
+        Restaura:
+        - Hierarquia (RMs, UTPs, Municípios)
+        - Atributos dos nós (regic, sede_utp, etc.)
+        - Mapeamento de Sedes (utp_seeds)
+        - Dicionário de REGIC (mun_regic)
+        """
+        import json
+        
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Snapshot não encontrado: {path}")
+            
+        logging.info(f"Carregando snapshot de {path}...")
+        
+        with open(path, 'r', encoding='utf-8') as f:
+            snapshot = json.load(f)
+            
+        # 1. Limpar estado atual
+        self.hierarchy.clear()
+        self.utp_seeds.clear()
+        self.mun_regic.clear()
+        
+        # Reinicializar raiz
+        self.hierarchy.add_node(self.root, type='country', level=0)
+        
+        nodes_data = snapshot.get('nodes', {})
+        utp_seeds_data = snapshot.get('utp_seeds', {})
+        
+        # 2. Restaurar Sedes
+        for utp_id, mun_id in utp_seeds_data.items():
+            self.utp_seeds[str(utp_id)] = int(mun_id)
+            
+        # 3. Restaurar Nós e Arestas
+        # Precisamos adicionar na ordem correta: RM -> UTP -> Mun
+        # Mas o JSON não garante ordem. Vamos fazer em 3 passadas ou ordenar por tipo/nível.
+        
+        # Separar por tipos
+        rms = []
+        utps = []
+        muns = []
+        others = []
+        
+        for node_id, data in nodes_data.items():
+            # Skip root if present (already added)
+            if str(node_id) == self.root:
+                continue
+                
+            node_type = data.get('type')
+            if node_type == 'rm':
+                rms.append((node_id, data))
+            elif node_type == 'utp':
+                utps.append((node_id, data))
+            elif node_type == 'municipality':
+                muns.append((node_id, data))
+            else:
+                others.append((node_id, data))
+        
+        # Passada 1: RMs
+        for node_id, data in rms:
+            self.hierarchy.add_node(node_id, **data)
+            self.hierarchy.add_edge(self.root, node_id)
+            
+        # Passada 2: UTPs
+        for node_id, data in utps:
+            self.hierarchy.add_node(node_id, **data)
+            # Tentar encontrar o pai (RM)
+            # O snapshot não salva explicitamente as arestas, mas podemos inferir
+            # Todas as UTPs devem estar ligadas a uma RM.
+            # No graph.py original: RM -> UTP.
+            # Mas qual RM? O grafo original tem a estrutura.
+            # Podemos tentar deduzir se tivermos o atributo parent ou inferir via RM_...
+            # O snapshot original salva apenas nós. 
+            # Se não salvamos as arestas, perdemos a relação RM->UTP se ela não for obvia.
+            # Mas espera! manager.py -> step_1 -> nos criamos RM_{name} e ligamos a UTP.
+            # Porém, uma UTP pode ter municipios de varias RMs? Não, UTP está contida (geralmente).
+            # Vamos assumir que precisamos reconectar.
+            # SE o snapshot não tem edges, temos um problema se a relação RM->UTP for complexa.
+            # Felizmente, ao recriar o grafo inicial, ligamos RM->UTP.
+            # Vamos ligar a UTP à sua RM correspondente?
+            # Na verdade, UTPs consolidam regioes.
+            # Simplificação: Ligar todas as UTPs a uma RM genérica ou tentar recuperar.
+            # Vamos verificar o código de exportação... ele exporta apenas nós.
+            
+            # WORKAROUND: Ligar UTPs diretamente ao Brasil (Root) se não soubermos a RM,
+            # OU tentar achar a RM pelos municipios filhos depois.
+            # Mas precisamos adicionar o nó UTP primeiro.
+            # Vamos adicionar ligando ao Root provisoriamente.
+            self.hierarchy.add_edge(self.root, node_id)
+            
+        # Passada 3: Municipios
+        for node_id, data in muns:
+            mun_id = int(node_id)
+            utp_id = data.get('utp_id')
+            
+            # Adicionar nó
+            self.hierarchy.add_node(mun_id, **data)
+            
+            # Restaurar aresta UTP -> Mun
+            if utp_id:
+                utp_node = f"UTP_{utp_id}"
+                if self.hierarchy.has_node(utp_node):
+                     self.hierarchy.add_edge(utp_node, mun_id)
+                else:
+                    # Se UTP não existe (estranho), cria
+                    self.add_utp(utp_id)
+                    self.hierarchy.add_edge(f"UTP_{utp_id}", mun_id)
+            
+            # Restaurar REGIC
+            if 'regic' in data and data['regic']:
+                self.mun_regic[mun_id] = data['regic']
+
+        logging.info(f"Snapshot carregado: {self.hierarchy.number_of_nodes()} nós restaurados.")
