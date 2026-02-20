@@ -2,8 +2,8 @@
   "version": "1.0",
   "status": "executed",
   "timestamp_created": "2026-01-16T11:01:56.622843",
-  "timestamp_last_updated": "2026-02-20T12:00:15.328340",
-  "total_consolidations": 94,
+  "timestamp_last_updated": "2026-02-20T12:20:31.441524",
+  "total_consolidations": 154,
   "utps_mapping": {
     "399": "206",
     "659": "206",
@@ -96,7 +96,28 @@
     "553": "734",
     "577": "394",
     "403": "700",
-    "583": "492"
+    "583": "492",
+    "15": "336",
+    "32": "681",
+    "50": "40",
+    "99": "65",
+    "118": "157",
+    "412": "38",
+    "192": "503",
+    "751": "336",
+    "NOVA25": "111",
+    "240": "505",
+    "266": "118",
+    "424": "38",
+    "623": "538",
+    "401": "29",
+    "417": "218",
+    "358": "102",
+    "522": "240",
+    "537": "37",
+    "604": "103",
+    "710": "117",
+    "746": "86"
   },
   "consolidations": [
     {
@@ -1255,6 +1276,846 @@
         "mun_id": 1200351,
         "nm_mun": "Marechal Thaumaturgo",
         "regic_rank": 7
+      }
+    },
+    {
+      "id": 95,
+      "timestamp": "2026-02-20T12:19:37.626047",
+      "source_utp": "15",
+      "target_utp": "751",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2209609,
+        "nm_mun": "São Félix do Piauí",
+        "score": 111.11111111111111,
+        "regic_rank": 8,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 96,
+      "timestamp": "2026-02-20T12:19:37.638499",
+      "source_utp": "15",
+      "target_utp": "336",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2208601,
+        "nm_mun": "Prata do Piauí",
+        "score": 250.0,
+        "regic_rank": 3,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 97,
+      "timestamp": "2026-02-20T12:19:37.651112",
+      "source_utp": "15",
+      "target_utp": "336",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2210383,
+        "nm_mun": "São Miguel da Baixa Grande",
+        "score": 250.0,
+        "regic_rank": 3,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 98,
+      "timestamp": "2026-02-20T12:19:37.666992",
+      "source_utp": "32",
+      "target_utp": "681",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2102705,
+        "nm_mun": "Cantanhede",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 99,
+      "timestamp": "2026-02-20T12:19:37.688735",
+      "source_utp": "32",
+      "target_utp": "681",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2106755,
+        "nm_mun": "Miranda do Norte",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 100,
+      "timestamp": "2026-02-20T12:19:37.700262",
+      "source_utp": "50",
+      "target_utp": "40",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3511409,
+        "nm_mun": "Cerqueira César",
+        "score": 200.0,
+        "regic_rank": 4,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 101,
+      "timestamp": "2026-02-20T12:19:37.711181",
+      "source_utp": "50",
+      "target_utp": "40",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3503109,
+        "nm_mun": "Arandu",
+        "score": 200.0,
+        "regic_rank": 4,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 102,
+      "timestamp": "2026-02-20T12:19:37.721933",
+      "source_utp": "99",
+      "target_utp": "65",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2408904,
+        "nm_mun": "Parelhas",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 103,
+      "timestamp": "2026-02-20T12:19:37.734518",
+      "source_utp": "99",
+      "target_utp": "65",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2402402,
+        "nm_mun": "Carnaúba dos Dantas",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 104,
+      "timestamp": "2026-02-20T12:19:37.745460",
+      "source_utp": "118",
+      "target_utp": "214",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3164472,
+        "nm_mun": "São Sebastião do Anta",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 105,
+      "timestamp": "2026-02-20T12:19:37.756753",
+      "source_utp": "118",
+      "target_utp": "157",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3170057,
+        "nm_mun": "Ubaporanga",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 106,
+      "timestamp": "2026-02-20T12:19:37.771994",
+      "source_utp": "118",
+      "target_utp": "157",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3130556,
+        "nm_mun": "Imbé de Minas",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 107,
+      "timestamp": "2026-02-20T12:19:37.793557",
+      "source_utp": "118",
+      "target_utp": "157",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3150158,
+        "nm_mun": "Piedade de Caratinga",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 108,
+      "timestamp": "2026-02-20T12:19:37.814306",
+      "source_utp": "118",
+      "target_utp": "157",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3160959,
+        "nm_mun": "São Domingos das Dores",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 109,
+      "timestamp": "2026-02-20T12:19:37.829673",
+      "source_utp": "412",
+      "target_utp": "38",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2205524,
+        "nm_mun": "Júlio Borges",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 110,
+      "timestamp": "2026-02-20T12:19:37.842592",
+      "source_utp": "412",
+      "target_utp": "38",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2201101,
+        "nm_mun": "Avelino Lopes",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 111,
+      "timestamp": "2026-02-20T12:19:37.855556",
+      "source_utp": "192",
+      "target_utp": "503",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 4304853,
+        "nm_mun": "Carlos Gomes",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 112,
+      "timestamp": "2026-02-20T12:19:37.882147",
+      "source_utp": "192",
+      "target_utp": "503",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 4313607,
+        "nm_mun": "Paim Filho",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 113,
+      "timestamp": "2026-02-20T12:19:37.892290",
+      "source_utp": "751",
+      "target_utp": "336",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2201408,
+        "nm_mun": "Barro Duro",
+        "score": 250.0,
+        "regic_rank": 3,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 114,
+      "timestamp": "2026-02-20T12:19:37.902419",
+      "source_utp": "751",
+      "target_utp": "336",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2207751,
+        "nm_mun": "Passagem Franca do Piauí",
+        "score": 250.0,
+        "regic_rank": 3,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 115,
+      "timestamp": "2026-02-20T12:19:37.913183",
+      "source_utp": "NOVA25",
+      "target_utp": "685",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2304608,
+        "nm_mun": "General Sampaio",
+        "score": 100.0,
+        "regic_rank": 9,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 116,
+      "timestamp": "2026-02-20T12:19:37.923377",
+      "source_utp": "NOVA25",
+      "target_utp": "685",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2313351,
+        "nm_mun": "Tejuçuoca",
+        "score": 100.0,
+        "regic_rank": 9,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 117,
+      "timestamp": "2026-02-20T12:19:37.933614",
+      "source_utp": "NOVA25",
+      "target_utp": "685",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2310407,
+        "nm_mun": "Paramoti",
+        "score": 100.0,
+        "regic_rank": 9,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 118,
+      "timestamp": "2026-02-20T12:19:37.943957",
+      "source_utp": "NOVA25",
+      "target_utp": "685",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2300903,
+        "nm_mun": "Apuiarés",
+        "score": 100.0,
+        "regic_rank": 9,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 119,
+      "timestamp": "2026-02-20T12:19:37.954071",
+      "source_utp": "NOVA25",
+      "target_utp": "685",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2313807,
+        "nm_mun": "Uruburetama",
+        "score": 100.0,
+        "regic_rank": 9,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 120,
+      "timestamp": "2026-02-20T12:19:37.964709",
+      "source_utp": "NOVA25",
+      "target_utp": "111",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2310704,
+        "nm_mun": "Pentecoste",
+        "score": 333.3333333333333,
+        "regic_rank": 2,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 121,
+      "timestamp": "2026-02-20T12:19:37.974731",
+      "source_utp": "NOVA25",
+      "target_utp": "685",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2313559,
+        "nm_mun": "Tururu",
+        "score": 100.0,
+        "regic_rank": 9,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 122,
+      "timestamp": "2026-02-20T12:19:37.984840",
+      "source_utp": "NOVA25",
+      "target_utp": "111",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2313757,
+        "nm_mun": "Umirim",
+        "score": 333.3333333333333,
+        "regic_rank": 2,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 123,
+      "timestamp": "2026-02-20T12:19:37.995625",
+      "source_utp": "240",
+      "target_utp": "505",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 4312427,
+        "nm_mun": "Mormaço",
+        "score": 125.0,
+        "regic_rank": 7,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 124,
+      "timestamp": "2026-02-20T12:19:38.005934",
+      "source_utp": "240",
+      "target_utp": "505",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 4307500,
+        "nm_mun": "Espumoso",
+        "score": 125.0,
+        "regic_rank": 7,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 125,
+      "timestamp": "2026-02-20T12:19:38.016127",
+      "source_utp": "266",
+      "target_utp": "92",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3200904,
+        "nm_mun": "Barra de São Francisco",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 126,
+      "timestamp": "2026-02-20T12:19:38.026599",
+      "source_utp": "266",
+      "target_utp": "335",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3200169,
+        "nm_mun": "Água Doce do Norte",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 127,
+      "timestamp": "2026-02-20T12:19:38.036738",
+      "source_utp": "266",
+      "target_utp": "118",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3139607,
+        "nm_mun": "Mantena",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 128,
+      "timestamp": "2026-02-20T12:19:38.047417",
+      "source_utp": "424",
+      "target_utp": "38",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2206654,
+        "nm_mun": "Morro Cabeça no Tempo",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 129,
+      "timestamp": "2026-02-20T12:19:38.058814",
+      "source_utp": "424",
+      "target_utp": "38",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2203206,
+        "nm_mun": "Curimatá",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 130,
+      "timestamp": "2026-02-20T12:19:38.069965",
+      "source_utp": "623",
+      "target_utp": "539",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2919009,
+        "nm_mun": "Lajedinho",
+        "score": 125.0,
+        "regic_rank": 7,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 131,
+      "timestamp": "2026-02-20T12:19:38.080501",
+      "source_utp": "623",
+      "target_utp": "539",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2919306,
+        "nm_mun": "Lençóis",
+        "score": 125.0,
+        "regic_rank": 7,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 132,
+      "timestamp": "2026-02-20T12:19:38.091130",
+      "source_utp": "623",
+      "target_utp": "538",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 2922052,
+        "nm_mun": "Mulungu do Morro",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 133,
+      "timestamp": "2026-02-20T12:19:38.101415",
+      "source_utp": "401",
+      "target_utp": "29",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3168200,
+        "nm_mun": "Tapiraí",
+        "score": 125.0,
+        "regic_rank": 7,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 134,
+      "timestamp": "2026-02-20T12:19:38.111834",
+      "source_utp": "401",
+      "target_utp": "29",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3141306,
+        "nm_mun": "Medeiros",
+        "score": 125.0,
+        "regic_rank": 7,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 135,
+      "timestamp": "2026-02-20T12:19:38.123165",
+      "source_utp": "417",
+      "target_utp": "218",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3162401,
+        "nm_mun": "São João da Ponte",
+        "score": 200.0,
+        "regic_rank": 4,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 136,
+      "timestamp": "2026-02-20T12:19:38.134174",
+      "source_utp": "417",
+      "target_utp": "218",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3170909,
+        "nm_mun": "Varzelândia",
+        "score": 200.0,
+        "regic_rank": 4,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 137,
+      "timestamp": "2026-02-20T12:19:38.144936",
+      "source_utp": "358",
+      "target_utp": "102",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3120201,
+        "nm_mun": "Cristais",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 138,
+      "timestamp": "2026-02-20T12:19:38.155237",
+      "source_utp": "358",
+      "target_utp": "195",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3130507,
+        "nm_mun": "Ilicínea",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 139,
+      "timestamp": "2026-02-20T12:19:38.165845",
+      "source_utp": "358",
+      "target_utp": "102",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 3128105,
+        "nm_mun": "Guapé",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 140,
+      "timestamp": "2026-02-20T12:19:38.176535",
+      "source_utp": "522",
+      "target_utp": "240",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 4306304,
+        "nm_mun": "David Canabarro",
+        "score": 200.0,
+        "regic_rank": 4,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 141,
+      "timestamp": "2026-02-20T12:19:38.187076",
+      "source_utp": "522",
+      "target_utp": "193",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 4313003,
+        "nm_mun": "Nova Bréscia",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 142,
+      "timestamp": "2026-02-20T12:19:38.197709",
+      "source_utp": "522",
+      "target_utp": "193",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 4315453,
+        "nm_mun": "Relvado",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 143,
+      "timestamp": "2026-02-20T12:19:38.221423",
+      "source_utp": "522",
+      "target_utp": "240",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 4322558,
+        "nm_mun": "Vanini",
+        "score": 200.0,
+        "regic_rank": 4,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 144,
+      "timestamp": "2026-02-20T12:19:38.231930",
+      "source_utp": "537",
+      "target_utp": "37",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5210208,
+        "nm_mun": "Iporá",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 145,
+      "timestamp": "2026-02-20T12:19:38.242914",
+      "source_utp": "537",
+      "target_utp": "37",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5207105,
+        "nm_mun": "Diorama",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 146,
+      "timestamp": "2026-02-20T12:19:38.253291",
+      "source_utp": "537",
+      "target_utp": "37",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5210307,
+        "nm_mun": "Israelândia",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 147,
+      "timestamp": "2026-02-20T12:19:38.263663",
+      "source_utp": "537",
+      "target_utp": "37",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5212006,
+        "nm_mun": "Jaupaci",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 148,
+      "timestamp": "2026-02-20T12:19:38.274289",
+      "source_utp": "537",
+      "target_utp": "37",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5200902,
+        "nm_mun": "Amorinópolis",
+        "score": 142.85714285714286,
+        "regic_rank": 6,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 149,
+      "timestamp": "2026-02-20T12:19:38.284908",
+      "source_utp": "604",
+      "target_utp": "103",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5006259,
+        "nm_mun": "Novo Horizonte do Sul",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 150,
+      "timestamp": "2026-02-20T12:19:38.295600",
+      "source_utp": "604",
+      "target_utp": "103",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5004700,
+        "nm_mun": "Ivinhema",
+        "score": 166.66666666666666,
+        "regic_rank": 5,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 151,
+      "timestamp": "2026-02-20T12:19:38.306247",
+      "source_utp": "710",
+      "target_utp": "117",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5201108,
+        "nm_mun": "Anápolis",
+        "score": 333.3333333333333,
+        "regic_rank": 2,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 152,
+      "timestamp": "2026-02-20T12:19:38.316819",
+      "source_utp": "710",
+      "target_utp": "117",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5204854,
+        "nm_mun": "Campo Limpo de Goiás",
+        "score": 333.3333333333333,
+        "regic_rank": 2,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 153,
+      "timestamp": "2026-02-20T12:19:38.327683",
+      "source_utp": "746",
+      "target_utp": "86",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5218706,
+        "nm_mun": "Rianápolis",
+        "score": 125.0,
+        "regic_rank": 7,
+        "flows_to_utp": 0
+      }
+    },
+    {
+      "id": 154,
+      "timestamp": "2026-02-20T12:19:38.338452",
+      "source_utp": "746",
+      "target_utp": "86",
+      "reason": "Isolated Municipality Resolution",
+      "details": {
+        "mun_id": 5218607,
+        "nm_mun": "Rialma",
+        "score": 125.0,
+        "regic_rank": 7,
+        "flows_to_utp": 0
       }
     }
   ]

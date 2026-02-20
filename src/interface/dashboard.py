@@ -905,22 +905,12 @@ def render_dashboard(manager):
     # ==== TAB 2: PÓS-CONSOLIDAÇÃO ====
     with tab2:
         st.markdown("### <span class='step-badge step-final'>Versão 8.1</span> UTPs unitárias", unsafe_allow_html=True)
-        col_title, col_btn = st.columns([3, 1])
-        with col_title:
-            st.markdown("""
-            **O objetivo central é garantir que nenhum município permaneça isolado em uma UTP própria, a menos que não haja candidatos adjacentes válidos. O processo segue uma hierarquia de critérios:**
-            
-            1.  **Consolidação Funcional Orientada a Fluxos:** esta etapa utiliza a matriz OD para mover a UTP unitária para uma UTP vizinha com a qual possua maior iteração.
-            2.  **Consolidação Territorial de Último Recurso:** após as tentativas baseadas em fluxos, as UTPs unitárias remanescentes são resolvidas via REGIC com a UTP vizinha de maior importância.
-            """)
-        with col_btn:
-            if st.button("Rodar Pipeline", width='stretch', key="btn_tab_run"):
-                with st.spinner("Executando..."):
-                    if run_consolidation():
-                        st.success("Feito!")
-                        st.rerun()
-                    else:
-                        st.error("Erro!")
+        st.markdown("""
+        **O objetivo central é garantir que nenhum município permaneça isolado em uma UTP própria, a menos que não haja candidatos adjacentes válidos. O processo segue uma hierarquia de critérios:**
+        
+        1.  **Consolidação Funcional Orientada a Fluxos:** esta etapa utiliza a matriz OD para mover a UTP unitária para uma UTP vizinha com a qual possua maior iteração.
+        2.  **Consolidação Territorial de Último Recurso:** após as tentativas baseadas em fluxos, as UTPs unitárias remanescentes são resolvidas via REGIC com a UTP vizinha de maior importância.
+        """)
         # === MÉTRICAS PADRONIZADAS (sempre visíveis) ===
         # Verifica diretamente o snapshot step5 — independente do consolidation_result.json
         _df_metrics_tab2 = snapshot_loader.get_snapshot_dataframe('step5')
